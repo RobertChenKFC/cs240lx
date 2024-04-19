@@ -10,10 +10,18 @@
 // the pin used to control the light strip.
 enum { pix_pin = 21 };
 
+void enable_cache(void) {
+    unsigned r;
+    asm volatile ("MRC p15, 0, %0, c1, c0, 0" : "=r" (r));
+	r |= (1 << 12); // l1 instruction cache
+	r |= (1 << 11); // branch prediction
+    asm volatile ("MCR p15, 0, %0, c1, c0, 0" :: "r" (r));
+}
+
 void notmain(void) {
     // if you don't do this, the granularity is too large for the timing
     // loop. 
-    enable_cache(); 
+    // enable_cache(); 
     gpio_set_output(pix_pin);
 
     // turn on one pixel to blue.
@@ -22,7 +30,7 @@ void notmain(void) {
     //  2. write different pixels.
     for(unsigned i = 0; i < 8; i++) {
         output("setting on\n");
-        pix_sendpixel(pix_pin, 0,0,0xff);
+        pix_sendpixel(pix_pin, 0,0xff,0);
         pix_flush(pix_pin);
         delay_ms(1000);
 
