@@ -1,6 +1,6 @@
 # list out the driver program source 
 PROGS := hello.c
-START = small-start.o
+START = objs/small-start.o
 LPI = 
 MEMMAP = ./memmap.fixed
 
@@ -12,7 +12,7 @@ OPT_LEVEL = -O2 -fno-zero-initialized-in-bss
 
 
 DEPS = ./Makefile
-include $(CS140E_2023_PATH)/libpi/mk/Makefile.template-v2
+include $(CS240LX_2024_PATH)/libpi/mk/Makefile.template-fixed
 
 all:: code-hello.h
 

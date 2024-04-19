@@ -1,6 +1,9 @@
 # list out the driver program source 
-PROGS := 1-hello.c
-PROGS := 2-ping-pong-byte.c
+# PROGS := 1-hello.c
+# PROGS := 2-ping-pong-byte.c
+# PROGS := 3-ping-pong-word.c
+# PROGS := 4-send-hello-pkt.c
+PROGS := 5-ir-bootloader.c
 
 COMMON_SRC = ir-put-get.c 
 
@@ -12,6 +15,10 @@ STAFF_OBJS += rpi-thread.o
 STAFF_OBJS += rpi-thread-asm.o
 
 CFLAGS += -I../small-prog
+
+# DEBUG
+# CFLAGS += -DSEND_USE_STAFF
+# CFLAGS += -DRECV_USE_STAFF
 
 LIB_POST := $(CS240LX_2024_PATH)/lib/libgcc.a
 

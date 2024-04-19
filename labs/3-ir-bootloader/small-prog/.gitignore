@@ -1,0 +1,4 @@
+*.bin
+*.list
+objs/
+code-hello.h
