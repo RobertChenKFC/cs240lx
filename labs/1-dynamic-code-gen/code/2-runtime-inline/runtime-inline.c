@@ -21,8 +21,8 @@ static int inline_on_p = 0, inline_cnt = 0;
 // original GET32_inline call instruction.
 uint32_t GET32_inline_helper(uint32_t addr, uint32_t lr) {
     if(inline_on_p) {
-        die("smash the call instruction to just do: ldr r0, [r0]\n");
         uint32_t pc = lr - 4;
+        *((volatile uint32_t*)pc) = 0xe5900000; // ldr r0, [r0]
 
         // don't do rewriting while we output to make debugging easier.
         inline_cnt++;
@@ -37,8 +37,20 @@ uint32_t GET32_inline_helper(uint32_t addr, uint32_t lr) {
 }
 
 void PUT32_inline_helper(uint32_t addr, uint32_t val, uint32_t lr) {
-    inline_on_p = 0;
-    todo("implement this\n");
+    if(inline_on_p) {
+        uint32_t pc = lr - 4;
+        *((volatile uint32_t*)pc) = 0xe5801000; // str r1, [r0]
+
+        // don't do rewriting while we output to make debugging easier.
+        inline_cnt++;
+        inline_on_p = 0;
+        output("PUT: rewriting address=%x, inline count=%d\n", pc, inline_cnt);
+        inline_on_p = 1;
+    }
+
+    // we just do the first one.  should not 
+    // see again.
+    *((volatile uint32_t*)addr) = val;
 }
 
 /********************************************************************
@@ -122,6 +134,58 @@ void test_get32_10(void) {
     GET32(0);
 }
 
+// use our inline PUT32
+static volatile uint32_t someInt;
+void test_put32_inline_10(void) {
+    PUT32_inline((uint32_t)&someInt, 0);
+    PUT32_inline((uint32_t)&someInt, 0);
+    PUT32_inline((uint32_t)&someInt, 0);
+    PUT32_inline((uint32_t)&someInt, 0);
+    PUT32_inline((uint32_t)&someInt, 0);
+    PUT32_inline((uint32_t)&someInt, 0);
+    PUT32_inline((uint32_t)&someInt, 0);
+    PUT32_inline((uint32_t)&someInt, 0);
+    PUT32_inline((uint32_t)&someInt, 0);
+    PUT32_inline((uint32_t)&someInt, 0);
+}
+
+// use the raw PUT32
+void test_put32_10(void) {
+    PUT32((uint32_t)&someInt, 0);
+    PUT32((uint32_t)&someInt, 0);
+    PUT32((uint32_t)&someInt, 0);
+    PUT32((uint32_t)&someInt, 0);
+    PUT32((uint32_t)&someInt, 0);
+    PUT32((uint32_t)&someInt, 0);
+    PUT32((uint32_t)&someInt, 0);
+    PUT32((uint32_t)&someInt, 0);
+    PUT32((uint32_t)&someInt, 0);
+    PUT32((uint32_t)&someInt, 0);
+}
+
+enum {
+  OFFSET_MASK = 0xffffff
+};
+uint32_t arm_b(uint32_t src_addr, uint32_t target_addr) {
+  // Last 24 bits are the branch offset
+  uint32_t offset;
+  // src + 8 + 4 * offset = dst
+  // offset = (dst - src - 8) / 4
+  if (target_addr >= src_addr) {
+    offset = (target_addr - src_addr - 8) / 4;
+    assert(offset <= OFFSET_MASK);
+  } else {
+    offset = (src_addr - target_addr + 8) / 4;
+    assert(offset <= OFFSET_MASK);
+    offset = ~offset;
+    ++offset;
+    offset &= OFFSET_MASK;
+  }
+
+  uint32_t inst = 0xea000000 | offset;
+  return inst;
+}
+
 
 void notmain(void) {
     assert(!inline_cnt);
@@ -153,8 +217,6 @@ void notmain(void) {
     output("time to run 10 times non-inlined:   %d\n", t_run10);
     output("total inline count=%d\n", inline_cnt);
 
-    todo("smash the original get32: should get same speedup\n");
-    
     // smash the GET32 code to call the GET32_inline_helper, identically
     // how GET32_inline does.  you can' just copy the code since the branch
     // is relative to the destination.
@@ -164,7 +226,8 @@ void notmain(void) {
     uint32_t orig_val0 = get_pc[0];
     uint32_t orig_val1 = get_pc[1];
 
-    todo("assign the new instructions to get_pc[0] and get_pc[1]\n");
+    get_pc[0] = 0xe1a0100e; // mov r1, lr
+    get_pc[1] = arm_b((uint32_t)&get_pc[1], (uint32_t)GET32_inline_helper); // b GET32_inline_helper
 
     output("after rewriting get32!\n");
     output("    inst[0] = %x\n", get_pc[0]);
@@ -184,5 +247,27 @@ void notmain(void) {
     output("time to run 10 times non-inlined:   %d\n", t_run10);
     output("total inline count=%d\n", inline_cnt);
 
-    todo("now implement the same thing for PUT32\n");
+    uint32_t *put_pc = (void*)PUT32;
+    put_pc[0] = 0xe1a0200e; // mov r2, lr
+    put_pc[1] = arm_b((uint32_t)&put_pc[1], (uint32_t)PUT32_inline_helper); // b PUT32_inline_helper
+    output("after rewriting put32!\n");
+    output("    inst[0] = %x\n", put_pc[0]);
+    output("    inst[1] = %x\n", put_pc[1]);
+
+    // this test should now have inline overhead.
+    inline_on_p = 0;
+    uint32_t t0 = TIME_CYC(test_put32_10());
+    inline_on_p = 1;
+    uint32_t t1 = TIME_CYC(test_put32_10());
+    uint32_t t2 = TIME_CYC(test_put32_inline_10());
+    uint32_t t3 = TIME_CYC(test_put32_10());
+    uint32_t t4 = TIME_CYC(test_put32_inline_10());
+    inline_on_p = 0;
+
+    output("time to run PUT32 before inlining:             %d\n", t0);
+    output("time to run PUT32 w/ inlining overhead:        %d\n", t1);
+    output("time to run PUT32_inline w/ inlining overhead: %d\n", t2);
+    output("time to run PUT32 10 times:                    %d\n", t3);
+    output("time to run PUT32_inline 10 times:             %d\n", t4);
+    output("total inline count=%d\n", inline_cnt);
 }

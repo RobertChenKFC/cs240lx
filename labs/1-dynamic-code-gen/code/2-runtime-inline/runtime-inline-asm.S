@@ -4,7 +4,8 @@
 .globl PUT32_inline
 put32_inline:
 PUT32_inline:
-    asm_todo("implement this code after get32 works")
+    mov r2, lr
+    b PUT32_inline_helper
 
     @ put32_inline will simply return to caller since we
     @ we pass lr in r2  along with the original arguments.

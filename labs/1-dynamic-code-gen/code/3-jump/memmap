@@ -9,7 +9,17 @@ SECTIONS
      *
      * XXX: I cannot make text.boot work if we link start into libpi.a 
      */
-    .text 0x8000 :  { KEEP(*(.text.boot))  *(.text*) }
+    .hdr 0x8000 : {
+        LONG((0xea << 24) | ((0x40 - 8) / 4));
+        __hdr_start__ = .;
+        BYTE(104);
+        BYTE(101);
+        BYTE(108);
+        BYTE(108);
+        BYTE(111);
+        BYTE(0);
+    }
+    .text 0x8040 :  { KEEP(*(.text.boot))  *(.text*) }
     .data : { *(.data*) } 
     .rodata : { *(.rodata*) }
     .bss : {

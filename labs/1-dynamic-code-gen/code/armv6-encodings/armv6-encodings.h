@@ -46,7 +46,7 @@ armv6_mov_imm8_rot4(reg_t rd, uint32_t imm8, unsigned rot4) {
     if(rot4>>4)
         panic("rotation %d does not fit in 4 bits!\n", rot4);
 
-    todo("implement mov with rotate\n");
+    return 0xe3a00000 | (rd.reg << 12) | (rot4 << 8) | imm8;
 }
 static inline uint32_t 
 armv6_mov_imm8(reg_t rd, uint32_t imm8) {
@@ -60,7 +60,7 @@ armv6_mvn_imm8(reg_t rd, uint32_t imm8) {
 
 static inline uint32_t 
 armv6_bx(reg_t rd) {
-    todo("implement bx\n");
+  return 0xe12fff10 | rd.reg;
 }
 
 // use 8-bit immediate imm8, with a 4-bit rotation.
@@ -74,7 +74,7 @@ armv6_orr_imm8_rot4(reg_t rd, reg_t rn, unsigned imm8, unsigned rot4) {
     if(rot4>>4)
         panic("rotation %d does not fit in 4 bits!\n", rot4);
 
-    todo("implement orr with rotation\n");
+    return 0xe3800000 | (rd.reg << 12) | (rot4 << 8) | imm8;
 }
 
 static inline uint32_t 
@@ -97,7 +97,22 @@ armv6_mult(reg_t rd, reg_t rm, reg_t rs) {
 static inline uint32_t 
 armv6_ldr_off12(reg_t rd, reg_t rn, int offset) {
     // a5-20
-    todo("implement lrd_off12\n");
+    uint32_t imm;
+    uint32_t hdr;
+    if (offset < 0) {
+      imm = -offset;
+      hdr = 0xe5100000;
+    } else {
+      imm = offset;
+      hdr = 0xe5900000;
+    }
+    assert(imm <= 0xfff);
+    return hdr | ((uint32_t)rn.reg << 16) | ((uint32_t)rd.reg << 12) | imm;
+    // DEBUG
+    /*
+    reg_t r0 = reg_mk(0);
+    return armv6_mov(r0, r0);
+    */
 }
 
 /**********************************************************************
@@ -109,8 +124,10 @@ armv6_ldr_off12(reg_t rd, reg_t rn, int offset) {
 
 static inline uint32_t *
 armv6_load_imm32(uint32_t *code, reg_t rd, uint32_t imm32) {
-    todo("implement loading arbitrary constant\n");
-    return code;
+  code[0] = armv6_ldr_off12(rd, reg_mk(armv6_pc), 0); // ldr rd, [pc, #8]
+  code[1] = 0xea000000; // b pc+4
+  code[2] = imm32;
+  return code + 3;
 }
 
 // MLA (Multiply Accumulate) multiplies two signed or unsigned 32-bit
@@ -120,7 +137,7 @@ armv6_load_imm32(uint32_t *code, reg_t rd, uint32_t imm32) {
 //      rd = rm * rs + rn.
 static inline uint32_t
 armv6_mla(reg_t rd, reg_t rm, reg_t rs, reg_t rn) {    
-    todo("implement multiply accumulate\n");
+  return 0xe0200090 | (rd.reg << 16) | (rn.reg << 12) | (rs.reg << 8) | rm.reg;
 }
 
 #endif

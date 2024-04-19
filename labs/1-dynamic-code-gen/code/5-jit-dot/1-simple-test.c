@@ -24,6 +24,9 @@ void notmain(void) {
         vec_fn_t dot_fn = jit_dot(b,n);
         uint32_t d1 = dot_fn(a);
 
+        // DEBUG
+        debug("d1 = %x\n", d1);
+
         if(d0 != d1)
             panic("static dot=%d, jit dot=%d\n", d0,d1);
 
