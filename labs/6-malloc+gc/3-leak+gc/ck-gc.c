@@ -49,9 +49,7 @@ void *sbrk(long increment) {
     static int init_p;
 
     assert(increment > 0);
-    if(init_p) 
-        panic("not handling\n");
-    else {
+    if(!init_p)  {
         unsigned onemb = 0x100000;
         heap_start = (void*)onemb;
         heap_end = (char*)heap_start + onemb;
@@ -147,8 +145,17 @@ static void mark(const char *where, uint32_t *p, uint32_t *e) {
     assert(p<e);
     assert(aligned(p,4));
     assert(aligned(e,4));
-
-    todo("implement the rest\n");
+    for (uint32_t *x = p; x < e; ++x) {
+      hdr_t *h = ck_ptr_is_alloced((uint32_t*)*x);
+      if (h && !h->mark) {
+        h->mark = 1;
+        if ((uint32_t*)*x == ck_data_start(h))
+          ++h->refs_start;
+        else
+          ++h->refs_middle;
+        mark("heap", ck_data_start(h), ck_data_end(h));
+      }
+    }
 }
 
 // do a sweep, warning about any leaks.
@@ -161,8 +168,27 @@ static unsigned sweep_leak(int warn_no_start_ref_p) {
     //  1. if there are no pointers to a block at all: give an error.
     //  2. if there are only refs to the middle and <warn_no_start_ref_p>
     //     is true, give a maybe leak.
-    for(hdr_t *h = ck_first_alloc(); h; h = ck_next_hdr(h), nblocks++)
-        todo("implement the rest\n");
+    for(hdr_t *h = ck_first_alloc(); h; h = ck_next_hdr(h), nblocks++) {
+      if (h->refs_start == 0) {
+        if (h->refs_middle == 0) {
+          /*
+          TRACE:sweep_leak:ERROR:GC:DEFINITE LEAK of block=1
+          TRACE:hdr_print:        logical block id=1,  nbytes=12
+          TRACE:hdr_print:        Block allocated at: tests/gc-test5-gc.c:test:20
+          */
+          ck_error(h, "GC:DEFINITE LEAK of block=%d \n", h->block_id);
+          ++errors;
+        } else if (warn_no_start_ref_p) {
+          /*
+          TRACE:sweep_leak:ERROR:GC:MAYBE LEAK of block 1  (no pointer to the start)
+          TRACE:hdr_print:        logical block id=1,  nbytes=4
+          TRACE:hdr_print:        Block allocated at: tests/gc-test6-no-leak.c:test1:12
+          */
+          ck_error(h, "GC:MAYBE LEAK of block %d  (no pointer to the start)\n", h->block_id);
+          ++maybe_errors;
+        }
+      }
+    }
 
 	trace("\tGC:Checked %d blocks.\n", nblocks);
 	if(!errors && !maybe_errors)
@@ -187,15 +213,18 @@ static void mark_all(void) {
     // get all the registers.
     uint32_t regs[16];
     dump_regs(regs);
-    todo("kill caller-saved registers so we don't falsely suppress errors.\n");
+    // DEBUG
+    // todo("kill caller-saved registers so we don't falsely suppress errors.\n");
+    memset(regs, 0, sizeof(uint32_t) * 4);
 
     mark("regs", regs, &regs[14]);
 
     // get the start of the stack (see libpi/staff-start.S)
     // and sweep up from the current stack pointer (from <regs>)
     uint32_t *stack_top = (void*)STACK_ADDR;
-    todo("get sp and mark stack\n");
-
+    uint32_t *get_sp(void);
+    uint32_t *sp = get_sp();
+    mark("stack", sp, stack_top);
 
     // sweep zero-initialized data <bss> and non-zero 
     // initialized <data>
@@ -216,11 +245,19 @@ static unsigned sweep_free(void) {
 	output("---------------------------------------------------------\n");
 	output("compacting:\n");
 
-    todo("sweep through allocated list: free any block that has no pointers\n");
+  for(hdr_t *h = ck_first_alloc(); h; h = ck_next_hdr(h), nblocks++) {
+    if (h->refs_start == 0 && h->refs_middle == 0) {
+      // TRACE:sweep_free:GC:FREEing block id=1
+      trace("GC:FREEing block id=%d \n", h->block_id);
+
+      ++nfreed;
+      nbytes_freed += h->nbytes_alloc;
+      ckfree(ck_data_start(h));
+    }
+  }
 
 	trace("\tGC:Checked %d blocks, freed %d, %d bytes\n", nblocks, nfreed, nbytes_freed);
-
-    return nbytes_freed;
+  return nbytes_freed;
 }
 
 unsigned ck_gc(void) {

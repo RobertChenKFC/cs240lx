@@ -31,7 +31,7 @@ void *ck_hdr_end(hdr_t *h) {
 
 // is ptr in <h>?
 unsigned ck_ptr_in_block(hdr_t *h, void *ptr) {
-    unimplemented();
+  return ck_hdr_start(h) <= ptr && ptr < ck_hdr_end(h);
 }
 
 
@@ -55,23 +55,34 @@ void (ckfree)(void *addr, src_loc_t l) {
     loc_debug(l, "freeing %p\n", addr);
     
     h->state = FREED;
-    unimplemented();
+
+    hdr_t *prev, *cur;
+    for (prev = alloc_list, cur = ck_next_hdr(prev); cur && cur != h;
+         prev = cur, cur = ck_next_hdr(cur));
     assert(ck_ptr_is_alloced(addr));
+
+    if (cur == h)
+      prev->next = prev->next->next;
+    else
+      alloc_list = alloc_list->next;
+
     kr_free(h);
 }
 
 // interpose on kr_malloc allocations and
 //  1. allocate enough space for a header and fill it in.
 //  2. add the allocated block to  the allocated list.
-void *(ckalloc)(unsigned nbytes, src_loc_t l) {
+void *(ckalloc)(uint32_t nbytes, src_loc_t l) {
 
     hdr_t *h = kr_malloc(nbytes + sizeof *h);
+    memset(h, 0, sizeof *h);
     h->nbytes_alloc = nbytes;
     h->state = ALLOCED;
     h->alloc_loc = l;
 
-    memset(h, 0, sizeof *h);
     loc_debug(l, "allocating %p\n", h);
 
-    unimplemented();
+    h->next = alloc_list;
+    alloc_list = h;
+    return ck_hdr_start(h);
 }

@@ -28,8 +28,8 @@ void notmain(void) {
         char *p1 = kr_malloc(1);
         output("malloc(1) = %p\n", p1);
 
-        assert(p0<p1);
-        if(p0 + n != p1)
+        assert(p1<p0);
+        if(p1 + n * (i + 1) != p0)
             panic("p0=%p, p1=%p, expected diff=%u, actual=%lu\n", p0,p1,n, p1-p0);
         else
             output("passed iter %d\n", i);

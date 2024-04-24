@@ -31,11 +31,11 @@ hdr_t *ck_ptr_is_alloced(void *ptr) {
 
 // is <ptr> inside <h>'s data block?
 unsigned ck_ptr_in_block(hdr_t *h, void *ptr) {
-    if(h->state != ALLOCED) {
-        panic("should only have allocated blocks: sdtate=%d\n", h->state);
-        return 0;
-    }
-    todo("implement this [simple]\n");
+  if(h->state != ALLOCED) {
+      panic("should only have allocated blocks: sdtate=%d\n", h->state);
+      return 0;
+  }
+  return ck_data_start(h) <= ptr && ptr < ck_data_end(h);
 }
 
 
@@ -52,7 +52,15 @@ void (ckfree)(void *addr, src_loc_t l) {
     assert(ck_ptr_is_alloced(addr));
     h->state = FREED;
 
-    todo("implement the rest\n");
+    hdr_t *prev, *cur;
+    for (prev = alloc_list, cur = ck_next_hdr(prev); cur && cur != h;
+         prev = cur, cur = ck_next_hdr(cur));
+
+    if (cur == h)
+      prev->next = prev->next->next;
+    else
+      alloc_list = alloc_list->next;
+
     kr_free(h);
 }
 
@@ -71,5 +79,9 @@ void *(ckalloc)(uint32_t nbytes, src_loc_t l) {
     h->alloc_loc = l;
     h->block_id = block_id++;
 
-    todo("implement the rest\n");
+    loc_debug(l, "allocating %p\n", h);
+
+    h->next = alloc_list;
+    alloc_list = h;
+    return ck_data_start(h);
 }
