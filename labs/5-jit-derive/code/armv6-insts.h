@@ -88,11 +88,13 @@ _Static_assert(arm_mvn_op == 0b1111, "bad num list");
 //  - shift operatnd: page A5-8 [armv6.pdf]
 //
 // we do not do any carries, so S = 0.
-static inline unsigned arm_add(uint8_t rd, uint8_t rs1, uint8_t rs2) {
+static inline unsigned handcoded_arm_add(uint8_t rd, uint8_t rs1, uint8_t rs2) {
     assert(arm_add_op == 0b0100);
-    unimplemented();
+    //     cond {AL}     op add               rn            rd           rm
+    return (0xe << 28) | (arm_add_op << 21) | (rs1 << 16) | (rd << 12) | rs2;
 }
 
+/*
 // <add> of an immediate
 static inline uint32_t arm_add_imm8(uint8_t rd, uint8_t rs1, uint8_t imm) {
     unimplemented();
@@ -107,5 +109,6 @@ static inline uint32_t
 arm_or_imm_rot(uint8_t rd, uint8_t rs1, uint8_t imm8, uint8_t rot_nbits) {
     unimplemented();
 }
+*/
 
 #endif

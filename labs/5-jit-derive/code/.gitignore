@@ -1,0 +1,9 @@
+temp*
+objs/
+*.bin
+*.list
+*.elf
+*.o
+*.d
+check-encodings
+test.s
