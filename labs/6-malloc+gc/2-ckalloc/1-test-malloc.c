@@ -23,6 +23,11 @@ void notmain(void) {
     unsigned n = sizeof (Header) + sizeof(union align);
     int ntests = 10;
 
+    // XXX: 
+    // the kr malloc actually allocates from the tail end
+    // rather than the front of the free block.   so the 
+    // assert below is p0>p1 rather than the more intuitive
+    // p0<p1
     output("malloc(1) = %p\n", p0);
     for(int i = 0; i < ntests; i++) {
         char *p1 = kr_malloc(1);
