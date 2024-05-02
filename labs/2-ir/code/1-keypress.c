@@ -13,18 +13,42 @@ struct readings { unsigned usec, v; };
 
 const char *key_to_str(unsigned x) {
   switch (x) {
-    case 0xf10ee40e:
-      return "arrow to circle";
-    case 0xf20de40e:
-      return "volume up";
-    case 0xf30ce40e:
-      return "volume down";
-    case 0xf40be40e:
-      return "circle to arrow";
-    case 0xf50ae40e:
-      return "exit";
+    case 0x45ba00ff:
+      return "1";
+    case 0x46b900ff:
+      return "2";
+    case 0x47b800ff:
+      return "3";
+    case 0x44bb00ff:
+      return "4";
+    case 0x40bf00ff:
+      return "5";
+    case 0x43bc00ff:
+      return "6";
+    case 0x7f800ff:
+      return "7";
+    case 0x15ea00ff:
+      return "8";
+    case 0x9f600ff:
+      return "9";
+    case 0x16e900ff:
+      return "*";
+    case 0x19e600ff:
+      return "0";
+    case 0xdf200ff:
+      return "#";
+    case 0x18e700ff:
+      return "up";
+    case 0x8f700ff:
+      return "left";
+    case 0x1ce300ff:
+      return "ok";
+    case 0x5aa500ff:
+      return "right";
+    case 0x52ad00ff:
+      return "down";
     default:
-      panic("unknown key %x\n", x);
+      return "unknown";
   }
 }
 
@@ -71,7 +95,7 @@ int is_header(struct readings *r, unsigned n) {
 // assert that they are seperated by skips!
 unsigned convert(struct readings *r, unsigned n) {
   unsigned ret = 0;
-  for (int i = 0; i < n; i += 2) {
+  for (int i = 0; i + 1 < n; i += 2) {
     assert(is_skip(&r[i]));
     ret |= pick(&r[i + 1], 600, 1600) << (i / 2);
   }
@@ -79,25 +103,17 @@ unsigned convert(struct readings *r, unsigned n) {
 }
 
 static void print_readings(struct readings *r, int n) {
-    assert(n);
     printk("-------------------------------------------------------\n");
     for(int i = 0; i < n; i++) {
-        if(i) 
-            assert(!is_header(r+i,n-i));
         printk("\t%d: %d = %d usec\n", i, r[i].v, r[i].usec);
     }
-    printk("readings=%d\n", n);
-    if(!is_header(r,n))
-        printk("NOISE\n");
-    else
-        printk("convert=%x\n", convert(r,n));
 }
 
 // read in values until we get a timeout, return the number of readings.  
 static int get_readings(int in, struct readings *r, unsigned N) {
   int n = 0;
   int usec, v = 1;
-  while (n < N && (usec = read_while_eq(in, v, 20000))) {
+  while (n < N && (usec = read_while_eq(in, v, 60000))) {
     r[n++] = (struct readings){
       .usec = usec,
       .v = v
@@ -137,12 +153,23 @@ void notmain(void) {
           ++arr;
           --n;
         }
-
         // Remove the actual header
         arr += 2;
-        // Filter out the noisy readings at the end
-        while (arr[n - 1].usec == NOISE)
-          --n;
+        n -= 2;
+
+        // DEBUG
+        // print_readings(arr, n);
+
+        // Filter out the tail
+        for (int i = n - 1; i >= 0; --i) {
+          if (arr[i].usec > 30000) {
+            n = arr[i].v ? i : i - 1;
+            break;
+          }
+        }
+
+        // DEBUG
+        // print_readings(arr, n);
 
         unsigned x = convert(arr,n);
         output("converted to %x\n", x);

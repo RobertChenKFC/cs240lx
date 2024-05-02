@@ -10,8 +10,11 @@ static int read_while_eq(int pin, int v, unsigned timeout) {
     unsigned start = timer_get_usec_raw();
     while(1) {
         // make sure always return != 0
-        if(gpio_read(pin) != v)
-            return timer_get_usec_raw() - start + 1;
+        if(gpio_read(pin) != v) {
+            unsigned diff = timer_get_usec_raw() - start + 1;
+            assert(diff <= timeout + 1);
+            return diff;
+        }
         // unless timeout.
         if((timer_get_usec_raw() - start) >= timeout)
             return 0;
@@ -22,7 +25,7 @@ void notmain(void) {
     enum { 
         input = 21,
         N = 10,          // total readings
-        timeout = 40000, // timeout in usec we wait to get a reading
+        timeout = 20000, // timeout in usec we wait to get a reading
      };
 
     gpio_set_input(input);
@@ -40,6 +43,11 @@ void notmain(void) {
         // read values until timeout.  the values should alternate
         // (v starts = 0, then goes to 1 then 0 etc)
         uint32_t val[255], idx,v;
+
+        // DEBUG
+        for (int i = 0; i < 255; ++i)
+          val[i] = 12345678;
+
         v = 0;
         idx=0;
         while(idx < 255) {
