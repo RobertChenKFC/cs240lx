@@ -282,6 +282,11 @@ introducing variance.  On big common issue:
 -----------------------------------------------------------------
 ### Part 3: redo your code to use interrupts (`code/3-scope-int`)
 
+Background:
+  - [140E's interrupt lab](https://github.com/dddrrreee/cs140e-24win/tree/main/labs/5-interrupts/README.md)
+  - [140E's device interrupt lab](https://github.com/dddrrreee/cs140e-24win/tree/main/labs/9-device-int/README.md)
+
+
 I generally avoid interrupts because they make the code essentially
 untestable.  People already can't exhaustively test sequential code
 b/c the number of paths grows roughly exponentially with code size. If
@@ -323,16 +328,124 @@ Problems:
      Solution: use the thread or process id registers described on 
      page 3-129 of the ARM1176 document.   These are three scratch
      registers that hardware doesn't interpret and the "OS" can use
-     however it wants.
+     however it wants.  The screenshot of the manual below gives the 
+     instructions.
 
      Note: this is a good reason to reach chapter 3 of the arm1176:
      there are all sorts of weirdo little operations that when you
      add cleverness can let you do neat stuff not possible on a 
      general purpose OS.
 
-You are given scaffolding for all of this, but you should drop in your
-140E implementations to get rid of our code (or re-implement yourself
-if you haven't taken 140E).
+<p align="center">
+  <img src="images/global-regs.png" width="800" />
+</p>
+
+
+We give you a working code example that setups up interrupts on GPIO falling
+and rising edges and measures how long until the first cycle count read
+occurs (naively about 150 cycles), and how long the interrupt handler takes at 
+all (naively about 1200 cycles).
+  1. Connect a jumper from pin 20 to 21 (loopback).  This is a nice thing about
+     interrupts: we don't need two pi's.  The test generator can run on the 
+     same machine as the scope code.
+  2. `make` will run the code.
+  3. Look through the code!
+
+For the initial implementation I get the following measurements:
+
+```
+n = 0: about to write
+n = 0, time until read cycle=232, time until return==1614
+n = 1: about to write
+n = 1, time until read cycle=156, time until return==1199
+n = 2: about to write
+n = 2, time until read cycle=153, time until return==1193
+n = 3: about to write
+n = 3, time until read cycle=156, time until return==1195
+n = 4: about to write
+n = 4, time until read cycle=153, time until return==1195
+n = 5: about to write
+n = 5, time until read cycle=156, time until return==1199
+n = 6: about to write
+n = 6, time until read cycle=153, time until return==1195
+n = 7: about to write
+n = 7, time until read cycle=156, time until return==1199
+n = 8: about to write
+n = 8, time until read cycle=154, time until return==1197
+n = 9: about to write
+n = 9, time until read cycle=156, time until return==1195
+```
+
+Because we have a cold icache, the first read takes 232 cycles and the 
+entire interrupt handler takes 1614 cycles from writing to GPIO pin until
+it returns.  The later iterations are fairly consistent, and lower because
+they are using the same code.
+
+#### What to do
+
+After you look throuhgh and play around with the code.  You should go through and:
+  1. Move the cycle count read to the first instruction of the interrupt
+     trampoline and pass it to the C code..  Use a global register to hold
+     the value.  Make sure this part works.
+
+  2. Make a copy of the the code and adapt it to have your scope and
+     test genration code.
+
+For my code, I get around 4 cycle error per sample, for a low total
+error:
+
+```
+event 1: v=1, cycle=5996, err=4, toterr=4
+event 2: v=0, cycle=5996, err=4, toterr=8
+event 3: v=1, cycle=5996, err=4, toterr=12
+event 4: v=0, cycle=5996, err=4, toterr=16
+event 5: v=1, cycle=5996, err=4, toterr=20
+event 6: v=0, cycle=5996, err=4, toterr=24
+event 7: v=1, cycle=5996, err=4, toterr=28
+event 8: v=0, cycle=5996, err=4, toterr=32
+event 9: v=1, cycle=5996, err=4, toterr=36
+event 10: v=0, cycle=5997, err=3, toterr=39
+event 11: v=1, cycle=5996, err=4, toterr=43
+event 12: v=0, cycle=5995, err=5, toterr=48
+event 13: v=1, cycle=5996, err=4, toterr=52
+```
+
+
+#### Extensions
+
+There are tons of extensions
+  - Cut as many cycles as possible from the interrupt code: the smaller
+    you make the round trip take the finer you can sample.  (This is
+    one down side of the interrupt version: it can't sample nearly as
+    fast as the non-interrupt version).
+
+    You can inline all the code, likely eliminate all memory barriers
+    (make sure this is safe though), possibly ensure that you only get
+    one type of interrupt (i.e., no random GPU interrupts) so you can
+    eliminate all of these checks.
+
+    After doing the above, you could also use the "fast interrupt" mode 
+    so you get more registers, potentially being able to write everything
+    in assembly so you don't have to save or restore anything.
+
+    Additionally, add pinnned virtual memory so you can add data caching
+    (for writeback).
+
+  - Change your code so that it can do record-replay and use that to 
+    monitor how your pi controls the sonar device we gave out and then
+    replay the signal, checking that the code prints out the same values.
+
+  - Change your code so that it can monitor multiple pins.  (This isn't
+    a huge deal, but is useful).
+
+  - Overclock the pi and the GPU to try to get finer-grained 
+    measurements.  Overclocking the GPU may require being careful
+    with the uart.
+
+  - Measure your light array, measure your software uart, measure you
+    IR and make sure they match the values you expect.  There will be
+    some adjustment required, so doing these will let you sand your code
+    down into something useabel.
 
 -----------------------------------------------------------------
 ### Use page faults or watchpoints to get rid of the loop condition.
