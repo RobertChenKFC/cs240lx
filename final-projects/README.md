@@ -276,6 +276,42 @@ Some final project ideas:
     [Using the pi to snoop unencrypted bus traffic](https://www.tomshardware.com/pc-components/cpus/youtuber-breaks-bitlocker-encryption-in-less-than-43-seconds-with-sub-dollar10-raspberry-pi-pico).
 
 
+  - Doing fault injection by messing with volates:
+    https://www.synacktiv.com/how-to-voltage-fault-injection
+
+    Basic puzzle: how to vary voltage to make the CPU jump over or do the
+    wrong branch of an if statement?  Used to attack smart cards etc.
+
+<p align="center">
+<img src="./fault-injection.jpg" width="450" />
+</p>
+
+
+  - [Thermal imaging camera](https://twitter.com/mikerankin/status/1766084442563469477?t=vowWK8Xwmw48S2F7pKwB-A&s=03)
+
+<p align="center">
+<img src="./thermal-cam.jpg" width="450" />
+</p>
+
+
+  - [Nice audio effects project](https://twitter.com/PaulStoffregen/status/1764384758442967393?t=JyjLgRwrqoCE5DFeolZ1pw&s=03)
+
+  
+<p align="center">
+<img src="./audio-effects.jpg" width="450" />
+</p>
+
+
+  - [Nice use of steppers for sound](https://twitter.com/getwired/status/1738832034133659792?t=Ino-fwkv6LJMJv6qmsweOA&s=03)
+
+    There are labs for both (1) an i2s microphone and (2) using steppers 
+    to make sound in last years 240lx.  
+
+<p align="center">
+<img src="./nice-stepper-sound.jpg" width="450" />
+</p>
+
+
 ------------------------------------------------------------------------------
 ## Final projects ideas from us
 
