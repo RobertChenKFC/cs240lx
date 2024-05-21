@@ -1,0 +1,4 @@
+*.bin
+*.list
+*.o
+objs/
