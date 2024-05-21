@@ -1,8 +1,9 @@
 #ifndef JTAG_H
 #define JTAG_H
 
+#include "rpi.h"
+
 enum {
-  JTAG_TRST = 22,
   JTAG_RTCK = 23,
   JTAG_TDO = 24,
   JTAG_TCK = 25,
@@ -20,6 +21,8 @@ enum {
   JTAG_IDCODE = 0b11110,
   JTAG_BYPASS = 0b11111,
 
+  JTAG_ID_LEN = 32,
+
   JTAG_SCREG_LEN = 5,
   JTAG_SCREG_DIDR = 0,
   JTAG_SCREG_DSCR = 1,
@@ -27,6 +30,14 @@ enum {
 
   JTAG_DIDR_LEN = 32,
   JTAG_IMPLEMENTOR_LEN = 8,
+
+  JTAG_DSCR_LEN = 32,
 };
+
+void jtag_init(void);
+void jtag_reset(void);
+uint32_t jtag_set_ir(uint32_t ir);
+void jtag_set_dr_long(uint32_t *dr, uint32_t len, uint32_t *old_dr);
+uint32_t jtag_set_dr(uint32_t dr, uint32_t len);
 
 #endif // JTAG_H

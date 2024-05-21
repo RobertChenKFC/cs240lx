@@ -1,5 +1,6 @@
 # list out the driver program source 
 PROGS = probe.c
+COMMON_SRC = ../jtag.c
 
 FIRST_DEVICE=/dev/$$(ls /dev | grep cu.usbserial | head -n 1)
 LAST_DEVICE=/dev/$$(ls /dev | grep cu.usbserial | tail -n 1)
