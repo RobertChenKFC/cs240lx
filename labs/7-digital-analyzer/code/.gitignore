@@ -1,0 +1,4 @@
+*.bin
+*.list
+objs/
+*.txt

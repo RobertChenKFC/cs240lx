@@ -24,12 +24,10 @@ dump_samples(log_ent_t *l, unsigned n, unsigned period) {
         unsigned exp = period * (i+1);
         unsigned err = tot > exp ? tot - exp : exp - tot;
         tot_err += err;
-        unsigned cur_err = ncyc > period ? ncyc - period : period - ncyc;
-        sum_err += cur_err;
+        sum_err += ncyc > period ? ncyc - period : period - ncyc;
 
         printk(" %d: val=%d, time=%d, tot=%d: exp=%d (err=%d, toterr=%d, "
-               "curerr=%d, sumerr=%d)\n", i, e->v, ncyc, tot, exp, err,
-               tot_err, cur_err, sum_err);
+               "sumerr=%d)\n", i, e->v, ncyc, tot, exp, err, tot_err, sum_err);
     }
     return tot_err;
 }

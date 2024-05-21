@@ -9,7 +9,6 @@
 enum { out_pin = 21, in_pin = 20 };
 
 static volatile unsigned n_interrupt;
-
 // when get to the interrupt.
 static volatile uint32_t gpio_cycle;
 // the value.
@@ -18,12 +17,9 @@ static volatile uint32_t gpio_val;
 // called on gpio interrupts.
 // currently cycle reg is garbage: you'll have to modify.
 void int_vector(uint32_t pc, uint32_t cycle_reg) {
-    unsigned s = cycle_cnt_read();
-    gcc_mb();
-
     if(gpio_event_detected(in_pin)) {
         n_interrupt++;
-        gpio_cycle = s;
+        gpio_cycle = cycle_reg;
         gpio_val = gpio_read(in_pin);
         gpio_event_clear(in_pin);
     }
@@ -100,7 +96,6 @@ void notmain() {
             e = cycle_cnt_read();
         } while(n_interrupt == n);
         v = 1 - v;
-
         output("n = %d, time until read cycle=%d, time until return==%d\n", 
                 i, 
                 gpio_cycle - c,

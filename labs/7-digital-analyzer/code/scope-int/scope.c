@@ -19,6 +19,7 @@
 #include "cycle.h"
 
 #include "timer-interrupt.h"
+
 #include "asm-helpers.h"
 cp_asm_set(vector_base_asm, p15, 0, c12, c0, 0)
 cp_asm_get(vector_base_asm, p15, 0, c12, c0, 0)
@@ -30,70 +31,46 @@ enum {
     gpio_clr0  = (GPIO_BASE + 0x28),
     gpio_lev0  = (GPIO_BASE + 0x34),
 
-    // DEBUG
-    JTAG_TDO = 24,
-    JTAG_TCK = 25,
-    JTAG_TDI = 26,
-    JTAG_TMS = 27,
-    
-    // DEBUG
-    // pin = 21,
-    pin = JTAG_TMS,
-
-    led = 27
+    pin = 21
 };
 
-void print_value(uint32_t x) {
-  debug("x = %d\n", x);
-  clean_reboot();
-}
-
-// #define read_pin(pin) (((*((volatile uint32_t *)gpio_lev0) >> pin)))
+#define read_pin(pin) (((*((volatile uint32_t *)gpio_lev0) >> pin)))
 #define read_from(addr, pin) (((*((volatile uint32_t *)addr) >> pin)))
 
-#define MAXSAMPLES 32
-static unsigned arr[MAXSAMPLES], v;
-void int_handler(unsigned *ptr) {
-  log_ent_t l[MAXSAMPLES];
-  unsigned n = 0;
-  for (unsigned *p = arr; *p; ++p, ++n) {
-    l[n] = (log_ent_t){
-      .ncycles = *p,
-      .v = v ^ ((n + 1) % 2)
-    };
+static volatile uint32_t changed = 0, gpio_cycle = 0, gpio_val;
+void int_vector(uint32_t pc, uint32_t cycle_reg) {
+  if (gpio_event_detected(pin)) {
+    changed = 1;
+    gpio_cycle = cycle_reg;
+    gpio_val = read_pin(pin);
+    gpio_event_clear(pin);
   }
-  // DEBUG
-  // dump_samples(l, n, CYCLE_PER_FLIP);
-  
-  debug("ptr - arr = %d\n", ptr - arr);
-  debug("n = %d, l = %x\n", n, l);
-  for (int i = 0; i < MAXSAMPLES; ++i)
-    debug("arr[%d] = %d\n", i, arr[i]);
-
-  clean_reboot();
 }
 
 // implement this code and tune it.
 unsigned 
 scope(register uint32_t addr, log_ent_t *l, unsigned n_max, unsigned max_cycles) {
-    /*
     unsigned v1, v0 = read_from(addr, pin), v = v0;
 
     // spin until the pin changes.
-    while((v1 = read_from(addr, pin)) == v0);
+    changed = 0;
+    while (!changed);
 
     // when we started sampling 
-    unsigned start = cycle_cnt_read(), t = start;
+    unsigned start = gpio_cycle, t = start;
+    changed = 0;
 
     // sample until record max samples or until exceed <max_cycles>
     unsigned n = 0, iter = 0, max_iter = 1e7;
-    while (++iter < max_iter && n < n_max) {
+    while (n < n_max && ++iter < max_iter) {
       // write this code first: record sample when the pin
       // changes.  then start tuning the whole routine.
-      v0 = read_from(addr, pin);
-      if (v0 != v1) {
-        l[n++].ncycles = cycle_cnt_read() - start;
-        v1 = v0;
+      if (changed) {
+        l[n++] = (log_ent_t){
+          .ncycles = gpio_cycle - start,
+          .v = gpio_val
+        };
+        changed = 0;
       }
     }
     printk("timeout! start=%d, t=%d, minux=%d\n",
@@ -102,26 +79,12 @@ scope(register uint32_t addr, log_ent_t *l, unsigned n_max, unsigned max_cycles)
     for (int i = 0; i < n; ++i)
       l[i].v = v ^ (i % 2);
     return n;
-    */
-  unsigned *scope_asm(unsigned*, unsigned, unsigned);
-  unsigned max_iter = 2e6;
-
-  v = read_from(addr, pin) & 1;
-  memset(arr, 0, sizeof(arr));
-  unsigned *arr_end = scope_asm(arr, n_max, max_iter);
-  for (unsigned *p = arr, i = 0; p != arr_end; ++p, ++i) {
-    l[i] = (log_ent_t){
-      .ncycles = *p,
-      .v = v ^ ((i + 1) % 2)
-    };
-  }
-  return arr_end - arr;
 }
 
 void notmain(void) {
     extern uint32_t default_vec_ints[];
 
-    // initialize interrupts to a clean state.
+    // initialie interrupts to a clean state.
     dev_barrier();
     PUT32(Disable_IRQs_1, 0xffffffff);
     PUT32(Disable_IRQs_2, 0xffffffff);
@@ -133,15 +96,22 @@ void notmain(void) {
     if(got != exp)
         panic("expected %p, have %p\n", got, exp);
 
+#if 1
+    // set interrupts on rising and falling edges.
+    gpio_int_rising_edge(pin);
+    gpio_int_falling_edge(pin);
+#else
+    gpio_int_async_rising_edge(in_pin);
+    gpio_int_async_falling_edge(in_pin);
+#endif
+
+    // clear any existing event.
+    gpio_event_clear(pin);
     system_enable_interrupts();
     caches_enable();
 
     // setup input pin.
     gpio_set_input(pin);
-
-    // turn on the LED for easy identification
-    gpio_set_output(led);
-    gpio_write(led, 1);
 
     // make sure to init cycle counter hw.
     cycle_cnt_init();

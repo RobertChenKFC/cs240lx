@@ -1,9 +1,12 @@
-PROGS = gpio-int.c
+# PROGS = gpio-int.c
+# COMMON_SRC = interrupts-vec-asm.S
 
-COMMON_SRC = interrupts-vec-asm.S
+PROGS = scope.c
+COMMON_SRC = scope-int.S
 
 # if you need to override the install
-BOOTLOADER = my-install
+LAST_DEVICE=/dev/$$(ls /dev | grep cu.usbserial | tail -n 1)
+BOOTLOADER = my-install --device $(LAST_DEVICE)
 
 CFLAGS = -I../test-gen-fancy
 OPT_LEVEL = -Ofast

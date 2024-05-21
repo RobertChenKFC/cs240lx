@@ -47,4 +47,12 @@ default_vec_ints:
     b reset
     @ ugly hack, since this is the last interrupt handler, this works
     mrc p15, 0, sp, c15, c12, 1    @ read cycle count into sp
-    b interrupt
+    mcr p15, 0, sp, c13, c0, 2     @ write the cycle count into a scratch register
+    sub   lr, lr, #4               @ correct interrupt pc
+    mov sp, #INT_STACK             @ load the stack pointer
+    push  {r0-r12,lr}              @ push all regs (trim this to caller)
+    mov   r0, lr                   @ pass exception pc as arg0
+    mrc p15, 0, r1, c13, c0, 2     @ mov the cycle count into arg1
+    bl    int_vector               @ call our interrupt handler.
+    pop   {r0-r12,lr}              @ pop all the regs
+    movs    pc, lr                 @ resume back at exception location.
