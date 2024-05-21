@@ -1,0 +1,5 @@
+*.bin
+*.list
+objs/
+venv/
+*.o
