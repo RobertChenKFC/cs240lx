@@ -1,5 +1,7 @@
 # list out the driver program source 
-PROGS = 4-measure.c  1-cache.c  0-simple.c 
+# PROGS = 4-measure.c  1-cache.c  0-simple.c 
+# PROGS = 0-simple.c 
+PROGS = 1-cache.c
 
 # your source, shared by driver code.
 #   if you want to use our staff-hc-sr04.o,
