@@ -42,12 +42,12 @@ You can middle click and drag to move, or scroll up/down to zoom.
 
 2. Go to Place->Add Symbol (or type the keyboard shortcut `A`). In the search bar, search for the symbol `Raspberry_Pi_2_3`. Select it, then click OK to start placing the component. Place it somewhere in the middle of the schematic by clicking. If you want to move it, you can click on it, hit `M`, and then move it around, then click again to place it. 
 
-3. Now, we will connect the power rails of the Raspberry Pi. Hit `P` to open up the power symbol menu. Look for `GND` and hit OK to start placing the ground symbol. Put it near the bottom of the Raspberry Pi symbol. Hover over the end of one of the GND pins on the Pi, then hit `W` to start drawing a wire. Connect it to the GND symbol you just placed. Repeat this process for all the GND pins (see below).
+3. Now, we will connect the power rails of the Raspberry Pi. Hit `P` to open up the power symbol menu. Look for `GND` and hit OK to start placing the ground symbol. Put it near the bottom of the Raspberry Pi symbol. Hover over the end of one of the GND pins on the Pi, then hit `W` to start drawing a wire. Connect it to the GND symbol you just placed. Repeat this process for all the GND pins (see below). NOTE: some versions of KiCAD have Pis with only one `GND` pin. That's totally OK! Just connect the one.
 
 ![Schematic Pi GND](img/schematic_pignd.png)
 
 
-Next, add power symbols for `+5V` and `+3V3` to the schematic, and connect those to the 5V and 3V3 pins of the Pi. Make sure you connect all pins of a given type together. We say 3V3 instead of 3.3V because in small text on a PCB, it may look like 33V. 3V3 is unambiguous.
+Next, add power symbols for `+5V` and `+3V3` to the schematic, and connect those to the 5V and 3V3 pins of the Pi. Make sure you connect all pins of a given type together. We say 3V3 instead of 3.3V because in small text on a PCB, it may look like 33V. 3V3 is unambiguous. NOTE: some versions of KiCAD have Pis with only one `+5V` and one `+3V3` pin. That's totally OK! Just connect the one.
 
 ![Schematic Pi PWR](img/schematic_pipwr.png)
 
@@ -59,7 +59,7 @@ Next, add power symbols for `+5V` and `+3V3` to the schematic, and connect those
 
 5. Now, connect the NRF I/O pins to the Pi. For both NRFs, connect MOSI/MISO/SCK to the MOSI0/MISO0/SCK0 pins on the Pi. Also, connect the CSN of one to the Pi's CE0, and the CSN of the other to the Pi's CE1. Finally, connect the CE of each to two free GPIO pins (I chose 5 and 6). You can optionally also connect the IRQ pins to GPIO pins so you could have interrupt functionality, just make sure that each IRQ goes to a different GPIO.
 
-6. The next step is to add a 10 uF coupling capacitor to each of the NRF power input pins to help smooth out the power supply to the NRF. Hit `A` and look for the `C_Polarized` part, and place one by each NRF. Connect the positive end of each to the NRF VCC, and the negative end to ground. Click on each capacitor and hit `E` to edit the properties. Set the value of each capacitor to `10 uF`. See the screenshot at the end of this section for what it should look like when you're done. 
+6. The next step is to add a 10 uF coupling capacitor to each of the NRF power input pins to help smooth out the power supply to the NRF. Hit `A` and look for the `C_Polarized` part, and place one by each NRF. Connect the positive end of each to the NRF VCC, and the negative end to ground. Click on each capacitor and hit `E` to edit the properties. Set the value of each capacitor to `10 uF`. See the screenshot at the end of this section for what it should look like when you're done. NOTE: Some versions of KiCAD don't have `C_Polarized`. In this case, just use `C` (which is a non-polarized capacitor). You will just need to find a non-polarized 10 uF capacitor on JLCPCB.
 
 7. Now, let's create a connector for our USB/UART chip so we can plug it directly into the PCB. We'll want to create a symbol to represent the logical pins that the USB/UART has. Go to Tools->Symbol Editor. You will see a blank symbol editor like this:
 
@@ -178,7 +178,7 @@ When you're done, your schematic should look something like this:
 * `M`: move (after selecting a symbol)
 * `R`: rotate (after selecting a symbol)
 
-## Step 2: Create PCB
+## Step 3: Create PCB
 
 Now, the fun begins -- time to create the PCB. For all of these steps, you don't have to match the exact thing I do. Actually better if you don't, so it's your board and not you making my board :D
 
@@ -449,3 +449,12 @@ Hit "NEXT".
 ![JLCPCB 3D](img/jlcpcb_3d.png)
 
 14. Click "Save To Cart". You're done and can order! It would take ~1 week to arrive.
+
+## Checkoff 
+- Have a finalized PCB design that has no DRC violations (or at least, only DRC violations that are ignorable)
+
+### Extensions (in rough increasing order of difficulty)
+- Add a new sensor to the board
+- Figure out autorouting. I haven't done this, but you can see [this video](https://www.youtube.com/watch?v=AuBZ1W80c9s) maybe?
+- Integrate the USB-Serial chip (CP2102N) directly onto the board. You can see the `parthiv_pcb_v2.1` directory which has a sample project. You may want to look at [the datasheet](https://www.silabs.com/documents/public/data-sheets/CP2102-9.pdf)
+- Design a board for your own project. Feel free to email me if you need help!
