@@ -1,9 +1,7 @@
 #ifndef __SYSCALLS_H__
 #define __SYSCALLS_H__
 
-#define SYS_RESUME  1
-#define SYS_TRYLOCK 2
-#define SYS_TEST 3
+#include "syscall-nums.h"
 
 int syscall_invoke_asm(int sysno, ...);
 

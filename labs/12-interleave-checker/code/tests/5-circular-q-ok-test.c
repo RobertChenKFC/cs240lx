@@ -24,8 +24,13 @@ static int circq_B(checker_t *c) {
     // anything until there are enough elements (so 
     // don't check code correctness in the paths before
     // this point).  you should add a yield() routine.
+    // DEBUG
+    /*
     if(cq_nelem(&cq) < N) 
         return 0;
+    */
+    while (cq_nelem(&cq) < N)
+      checker_yield(c);
 
     for(int i = 0; i < N; i++) {
         cqe_t e = cq_pop(&cq);

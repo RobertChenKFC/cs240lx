@@ -38,9 +38,12 @@ static int syscall_handler_full(regs_t *r) {
     case SYS_RESUME:
             switchto((void*)arg0);
             panic("not reached\n");
-    case SYS_TRYLOCK:
-        panic("not handling yet\n");
-
+    case SYS_TRYLOCK: {
+        pi_lock_t *l = (pi_lock_t*)arg0;
+        if (*l)
+          return 0;
+        return *l = 1;
+    }
     case SYS_TEST:
         printk("running empty syscall with arg=%d\n", arg0);
         return SYS_TEST;
@@ -49,12 +52,44 @@ static int syscall_handler_full(regs_t *r) {
     }
 }
 
+static checker_t *cur_checker;
+void user_mode_terminated(int ret) {
+  cur_checker->checker_regs.regs[0] = ret;
+  sys_switchto(&cur_checker->checker_regs);
+}
+
+int run_in_user_mode(int (*B)(struct checker *), struct checker *c) {
+  enum { N=8192 };
+  static uint64_t stack[N];
+
+  uint32_t cpsr_cur = cpsr_get();
+  assert(mode_get(cpsr_cur) != USER_MODE);
+  uint32_t cpsr = mode_set(cpsr_cur, USER_MODE);
+
+  cur_checker = c;
+  if (!cur_checker->b_yielded) {
+    cur_checker->b_regs = (regs_t){ 
+      .regs[REGS_PC] = (uint32_t)B,
+      .regs[REGS_R0] = (uint32_t)c,
+      .regs[REGS_SP] = (uint32_t)&stack[N],
+      .regs[REGS_CPSR] = cpsr,
+      .regs[REGS_LR] = (uint32_t)user_mode_terminated,
+    };
+  }
+  cur_checker->b_yielded = 0;
+  switchto_cswitch(&cur_checker->checker_regs, &cur_checker->b_regs);
+
+  // We must have returned from user_mode_terminated
+  return cur_checker->checker_regs.regs[0];
+}
+
 // called on each single step exception: 
 // if we have run switch_on_inst_n instructions then:
 //  1. run B().
 //     - if B() succeeds, then run the rest of A() to completion.  
 //     - if B() returns 0, it couldn't complete w current state:
 //       resume A() and switch on next instruction.
+static void A_terminated(uint32_t ret);
 static void single_step_handler_full(regs_t *r) {
     if(!brkpt_fault_p())
         panic("impossible: should get no other faults\n");
@@ -62,12 +97,33 @@ static void single_step_handler_full(regs_t *r) {
     uint32_t pc = r->regs[15];
     uint32_t n = ++checker->inst_count;
 
-    output("single-step handler: inst=%d: A:pc=%x\n", n,pc);
+    // output("single-step handler: inst=%d: A:pc=%x\n", n,pc);
 
     // the weird way single step works: run the instruction at 
     // address <pc>, by setting up a mismatch fault for any other
     // pc value.
-    brkpt_mismatch_set(pc);
+    if (checker->interleaving_p) {
+      if (n >= checker->switch_on_inst_n) {
+        brkpt_mismatch_stop();
+        int ret = run_in_user_mode(checker->B, (struct checker*)checker);
+        if (!checker->b_yielded && ret)
+          checker->switched_p = 1;
+        else
+          brkpt_mismatch_set(pc);
+      } else if (pc == (uint32_t)A_terminated) {
+        // If we reached the end of A here, this must mean that B has not been
+        // called yet, since single step wasn't disabled, so make sure to call
+        // B here
+        brkpt_mismatch_stop();
+        run_in_user_mode(checker->B, (struct checker*)checker);
+      } else {
+        brkpt_mismatch_set(pc);
+      }
+    } else if (pc == (uint32_t)A_terminated) {
+      brkpt_mismatch_stop();
+    } else {
+      brkpt_mismatch_set(pc);
+    }
     switchto(r);
 }
 
@@ -157,6 +213,7 @@ int check(checker_t *c) {
     //
     // if AB commuted, we could also check BA but this won't be 
     // true in general.
+#if 0
     for(int i = 0; i < 10; i++) {
         // 1.  initialize the state.
         c->init(c);     
@@ -169,19 +226,23 @@ int check(checker_t *c) {
         if(!c->check(c))
             panic("check failed sequentially: code is broken\n");
     }
+#endif
 
     // shows how to run code with single stepping: do the same sequential
     // checking but run A() in single step mode: 
     // should still pass (obviously)
     checker = c;
+#if 0
     for(int i = 0; i < 10; i++) {
         c->init(c);
+        c->interleaving_p = 0;
         run_A_at_userlevel(c);
         if(!c->B(c))
             panic("B should not fail\n");
         if(!c->check(c))
             panic("check failed sequentially: code is broken\n");
     }
+#endif
 
     //******************************************************************
     // this is what you build: check that A(),B() code works
@@ -209,6 +270,26 @@ int check(checker_t *c) {
     //  }
     // 
     //  return 0 if there were errors.
+    
+#if 1
+    for (int i = 1; ; ++i) {
+      output("Switch at instruction %d\n", i);
+      c->interleaving_p = 1;
+      c->switched_p = 0;
+      c->switch_on_inst_n = i;
+      c->inst_count = 0;
+      c->b_yielded = 0;
+      c->init(c);
+      run_A_at_userlevel(c);
+      c->nerrors += !c->check(c);
+      ++c->ntrials;
+      if (!c->switched_p)
+        break;
+    }
+#endif
 
-    return 1;
+    output("Number of trials: %d\n", c->ntrials);
+    output("Number of errors: %d\n", c->nerrors);
+
+    return c->nerrors == 0;
 }

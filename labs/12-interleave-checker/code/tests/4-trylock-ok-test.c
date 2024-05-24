@@ -14,8 +14,14 @@ static void cnt_A(checker_t *c) {
     sys_unlock(&l);
 } 
 static int cnt_B(checker_t *c) { 
+    // DEBUG
+    /*
     if(!sys_lock_try(&l))
         return 0;
+    */
+    while (!sys_lock_try(&l))
+      checker_yield(c);
+
     cnt++; 
     sys_unlock(&l);
     return 1;

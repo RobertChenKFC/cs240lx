@@ -8,6 +8,7 @@
 #include "cpsr-util.h"
 #include "breakpoint.h"
 #include "vector-base.h"
+#include "full-except.h"
 
 
 // simple debug macro: can turn it off/on by calling <brk_verbose({0,1})>
@@ -88,12 +89,24 @@ typedef struct checker {
 
     // set when we start doing interleave checking.
     unsigned interleaving_p;
+
+    // the registers of the checker and B. This allows B to yield to the checker
+    // if it cannot continue further
+    regs_t checker_regs, b_regs;
+    int b_yielded;
 } checker_t;
 
 // check the routines A and B pointed to in <c>
 // returns 1 if was successful, 0 otherwise.
 //  total trials and errors can be pulled from <c>
 int check(checker_t *c);
+
+void sys_cswitch(regs_t *old_regs, regs_t *regs);
+#define checker_yield(c) \
+  do { \
+    c->b_yielded = 1; \
+    sys_cswitch(&c->b_regs, &c->checker_regs); \
+  } while (0)
 
 void user_trampoline_ret(uint32_t cpsr_user, void (*fn)(void*), checker_t *c);
 

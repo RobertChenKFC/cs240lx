@@ -16,8 +16,13 @@ static void circq_A(checker_t *c) {
 // progress.
 static int circq_B(checker_t *c) { 
     // if(cq_pop_nonblock(&cq, &e)) {
+    // DEBUG
+    /*
     if(!cq_nelem(&cq)) 
         return 0;
+    */
+    while (!cq_nelem(&cq))
+      checker_yield(c);
 
     cqe_t e = cq_pop(&cq);
     assert(!cq_nelem(&cq));
