@@ -34,48 +34,27 @@ void notmain(void) {
 #ifdef TEST
   debug("pc before step: %x\n", jtag_read_original_register(JTAG_REG_PC));
  
-  jtag_step();
+  // jtag_step();
   
-  /*
-  for (int i = 0; i < 16; ++i)
-    debug("r%d = %x\n", i, jtag_read_original_register(i));
-
-  uint32_t addr = 0x8090;
-  for (int i = 0; i < 4; ++i)
-    debug("mem[%x] = %x\n", addr + i, (uint32_t)jtag_read_memory(addr + i));
-
-  // DEBUG
   // bkpt #0
-  uint32_t inst = 0xe1200070;
-  // b 0x8000 
-  // uint32_t inst = 0xeaffffda;
-  for (int i = 0; i < 4; ++i)
+  uint32_t addr = 0x8090;
+  uint32_t original_inst = 0, inst = 0xe1200070;
+  for (int i = 0; i < 4; ++i) {
+    original_inst |= (uint32_t)jtag_read_memory(addr + i) << (8 * i);
     jtag_write_memory(addr + i, (inst >> (8 * i)) & 0xff);
+  }
 
-  // DEBUG
-  debug("wrote to memory\n");
-  for (int i = 0; i < 4; ++i)
-    debug("mem[%x] = %x\n", addr + i, (uint32_t)jtag_read_memory(addr + i));
-
-  jtag_exit_debug_state();
-
-  // DEBUG
-  debug("exited debug state\n");
-  debug("dscr now: %b\n", jtag_read_dscr());
-
-  while (!jtag_halted());
-  jtag_enter_debug_state();
-
-  inst = 0xe3a0000c;
-  for (int i = 0; i < 4; ++i)
-    jtag_write_memory(addr + i, (inst >> (8 * i)) & 0xff);
-  */
+  jtag_continue();
+  for (volatile int i = 0; i < 4000000; ++i);
 
   debug("pc after step: %x\n", jtag_read_original_register(JTAG_REG_PC));
+
+  for (int i = 0; i < 4; ++i)
+    jtag_write_memory(addr + i, (original_inst >> (8 * i)) & 0xff);
 #else
   int run = 1;
   while (run) {
-    uint8_t r;
+    uint8_t r, val;
     uint32_t addr;
     switch (boot_read8()) {
       case CMD_READ_REG:
@@ -86,12 +65,22 @@ void notmain(void) {
         addr = boot_read32();
         boot_write8(jtag_read_memory(addr));
         break;
+      case CMD_WRITE_MEM:
+        addr = boot_read32();
+        val = boot_read8();
+        jtag_write_memory(addr, val);
+        boot_write8(0);
+        break;
       case CMD_STEP:
         jtag_step();
         boot_write8(0);
         break;
       case CMD_DETACH:
         run = 0;
+        break;
+      case CMD_CONTINUE:
+        jtag_continue();
+        boot_write8(0);
         break;
     }
   }

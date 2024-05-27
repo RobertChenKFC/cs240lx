@@ -488,3 +488,9 @@ void jtag_step(void) {
   bcr &= ~JTAG_BCR_EN;
   jtag_write_bcr(bcr);
 }
+
+void jtag_continue(void) {
+  jtag_exit_debug_state();
+  while (!jtag_halted());
+  jtag_enter_debug_state();
+}

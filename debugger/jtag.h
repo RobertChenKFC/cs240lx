@@ -110,5 +110,6 @@ void jtag_write_bcr(uint32_t val);
 uint32_t jtag_read_bvr(void);
 void jtag_write_bvr(uint32_t addr);
 void jtag_step(void);
+void jtag_continue(void);
 
 #endif // JTAG_H
