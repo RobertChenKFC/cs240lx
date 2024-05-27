@@ -8,16 +8,11 @@ enum {
 
 void notmain(void) {
   gpio_set_output(LED_PIN);
-  // DEBUG
-  gpio_set_function(JTAG_TRST, GPIO_FUNC_ALT4);
   gpio_set_function(JTAG_RTCK, GPIO_FUNC_ALT4);
   gpio_set_function(JTAG_TDO, GPIO_FUNC_ALT4);
   gpio_set_function(JTAG_TCK, GPIO_FUNC_ALT4);
   gpio_set_function(JTAG_TDI, GPIO_FUNC_ALT4);
   gpio_set_function(JTAG_TMS, GPIO_FUNC_ALT4);
-
-  // gpio_set_input(JTAG_TCK);
-  // gpio_set_output(JTAG_RTCK);
 
   output("Hello world!\n");
   int v = 0;

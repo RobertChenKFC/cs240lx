@@ -20,9 +20,123 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
+#include <assert.h>
+#include <ctype.h>
+#include <unistd.h>
 #include "libunix.h"
 #include "put-code.h"
+#include "boot.h"
+
+
+#if 0
+// hack-y state machine to indicate when we've seen the special string
+// 'DONE!!!' from the pi telling us to shutdown.
+int boot_done(unsigned char *s) {
+    static unsigned pos = 0;
+    const char exit_string[] = "DONE!!!\n";
+    const int n = sizeof exit_string - 1;
+
+    for(; *s; s++) {
+        assert(pos < n);
+        if(*s != exit_string[pos++]) {
+            pos = 0;
+            return boot_done(s+1); // check remainder
+        }
+        // maybe should check if "DONE!!!" is last thing printed?
+        if(pos == sizeof exit_string - 1)
+            return 1;
+    }
+    return 0;
+}
+
+// overwrite any unprintable characters with a space.
+// otherwise terminals can go haywire/bizarro.
+// note, the string can contain 0's, so we send the
+// size.
+void remove_nonprint(uint8_t *buf, int n) {
+    for(int i = 0; i < n; i++) {
+        uint8_t *p = &buf[i];
+        if(isprint(*p) || (isspace(*p) && *p != '\r'))
+            continue;
+        *p = ' ';
+    }
+}
+
+// read and echo the characters from the usbtty until it closes 
+// (pi rebooted) or we see a string indicating a clean shutdown.
+void boot_echo(int unix_fd, int pi_fd, const char *portname) {
+  enum {
+    STATE_ECHO,
+    STATE_OP,
+    STATE_,
+  };
+
+  static int pkt_hdr_cnt = 0, state = STATE_ECHO;
+
+    assert(pi_fd);
+    /*
+    if(portname)
+        output("listening on ttyusb=<%s>\n", portname);
+    */
+
+    while(1) {
+        unsigned char buf[4096];
+
+        int n;
+        if((n=read_timeout(unix_fd, buf, sizeof buf, 1000))) {
+            buf[n] = 0;
+            // output("about to echo <%s> to pi\n", buf);
+            write_exact(pi_fd, buf, n);
+        }
+
+        if(!can_read_timeout(pi_fd, 1000))
+            continue;
+        n = read(pi_fd, buf, sizeof buf - 1);
+
+        if(!n) {
+            // this isn't the program's fault.  so we exit(0).
+            if(!portname || tty_gone(portname))
+                clean_exit("pi ttyusb connection closed.  cleaning up\n");
+            // so we don't keep banginging on the CPU.
+            usleep(1000);
+        } else if(n < 0) {
+            sys_die(read, "pi connection closed.  cleaning up\n");
+        } else {
+            buf[n] = 0;
+            // if you keep getting "" "" "" it's b/c of the GET_CODE message from bootloader
+            // DEBUG
+            // remove_nonprint(buf,n);
+            // output("%s", buf);
+            for (int i = 0; i < n; ++i) {
+              char c = buf[i];
+              switch (state) {
+                case STATE_ECHO:
+                  if (c == BOOT_PKT_HDR) {
+                    if (++pkt_hdr_cnt == BOOT_PKT_HDR_LEN)
+                      state = STATE_READ_PKT;
+                  } else {
+                    while (--pkt_hdr_cnt)
+                      uart_put8(c);
+                  }
+                  break;
+                case STATE_READ_PKT:
+                  break;
+              }
+              if (reading_pkt) {
+              } else {
+              }
+            }
+
+            if(boot_done(buf)) {
+                // output("\nSaw done\n");
+                clean_exit("\nbootloader: pi exited.  cleaning up\n");
+            }
+        }
+    }
+    notreached();
+}
+#endif
+
 
 static char *progname = 0;
 
@@ -43,6 +157,47 @@ static void usage(const char *msg, ...) {
     output("    --trace-all: trace all put/get between rpi and unix side\n");
     output("    --trace-control: trace only control [no data] messages\n");
     exit(1);
+}
+
+typedef struct {
+  FILE *gdb_in;
+  FILE *gdb_out;
+  FILE *pi_in;
+  FILE *pi_out;
+} com_t;
+
+void pi_send8(FILE *out, uint8_t x) {
+  fputc(x, out);
+}
+
+void pi_send32(FILE *out, uint32_t x) {
+  pi_send8(out, (x >> 24) & 0xff);
+  pi_send8(out, (x >> 16) & 0xff);
+  pi_send8(out, (x >>  8) & 0xff);
+  pi_send8(out,  x        & 0xff);
+}
+
+uint8_t pi_read8(FILE *in) {
+  return fgetc(in);
+}
+
+uint32_t pi_read32(FILE *in) {
+  return (uint32_t)pi_read8(in) << 24 |
+         (uint32_t)pi_read8(in) << 16 |
+         (uint32_t)pi_read8(in) <<  8 |
+         (uint32_t)pi_read8(in);
+}
+
+uint32_t pi_read_register(com_t *com, uint8_t r) {
+  pi_send8(com->pi_out, CMD_READ_REG);
+  pi_send8(com->pi_out, r);
+  return pi_read32(com->pi_in);
+}
+
+uint8_t pi_read_memory(com_t *com, uint32_t addr) {
+  pi_send8(com->pi_out, CMD_READ_MEM);
+  pi_send32(com->pi_out, addr);
+  return pi_read8(com->pi_in);
 }
 
 enum {
@@ -127,7 +282,7 @@ void gdb_send_packet(FILE *out, const char *packet) {
   debug("cksum: %x\n", (int)cksum);
 }
 
-void gdb_handle_supported(FILE *out, char *cmd) {
+void gdb_handle_supported(com_t *com, char *cmd) {
   static const char *supported_features[] = {
     "hwbreak+",
     NULL
@@ -162,31 +317,28 @@ void gdb_handle_supported(FILE *out, char *cmd) {
     feature = strtok(NULL, ";");
   }
 
-  gdb_send_packet(out, packet);
+  gdb_send_packet(com->gdb_out, packet);
 }
 
-void gdb_handle_halt_reason(FILE *out, char *cmd) {
-  gdb_send_packet(out, "S05");
-
+void gdb_handle_halt_reason(com_t *com, char *cmd) {
+  gdb_send_packet(com->gdb_out, "S05");
 }
 
-void gdb_handle_attached(FILE *out, char *cmd) {
-  gdb_send_packet(out, "1");
+void gdb_handle_attached(com_t *com, char *cmd) {
+  gdb_send_packet(com->gdb_out, "1");
 }
 
-void gdb_handle_read_registers(FILE *out, char *cmd) {
-  // TODO: replace this with JTAG probe
-  char buf[1024];
-  buf[0] = 0;
-  char *p = buf;
-  for (int i = 0; i < 16; ++i) {
-    gdb_write32(p, 0xdeadbeef);
-    p += 8;
+void gdb_handle_read_registers(com_t *com, char *cmd) {
+  char buf[1024], *s = buf;
+  for (uint8_t r = 0; r < 16; ++r) {
+    uint32_t x = pi_read_register(com, r);
+    gdb_write32(s, x);
+    s += 8;
   }
-  gdb_send_packet(out, buf);
+  gdb_send_packet(com->gdb_out, buf);
 }
 
-void gdb_handle_read_memory(FILE *out, char *cmd) {
+void gdb_handle_read_memory(com_t *com, char *cmd) {
   // DEBUG
   debug("memory command: %s\n", cmd);
 
@@ -197,46 +349,43 @@ void gdb_handle_read_memory(FILE *out, char *cmd) {
   uint32_t addr = gdb_read(cmd + 1);
   uint32_t len = gdb_read(cmd + i + 1);
 
-  // DEBUG
-  debug("addr: %x, len: %d\n", addr, len);
+  char buf[1024], *s = buf;
+  for (uint32_t i = addr; i < addr + len; ++i) {
+    // DEBUG
+    debug("reading address %x\n", i);
 
-  char buf[1024], *p = buf;
-  for (int i = 0; i < len; ++i) {
-    switch ((addr + i) % 4) {
-      case 3:
-        gdb_write8(p, 0xe0);
-        break;
-      case 2:
-        gdb_write8(p, 0x81);
-        break;
-      case 1:
-        gdb_write8(p, 0x00);
-        break;
-      case 0:
-        gdb_write8(p, 0x02);
-        break;
-    }
-    p += 2;
+    uint8_t x = pi_read_memory(com, i);
+    gdb_write8(s, x);
+    s += 2;
   }
-  *p = 0;
 
-  // TODO: replace this with JTAG probe
-  gdb_send_packet(out, buf);
+  gdb_send_packet(com->gdb_out, buf);
 }
 
-void gdb_handle_read_register(FILE *out, char *cmd) {
-  uint8_t reg = gdb_read8(cmd + 1);
+void gdb_handle_read_register(com_t *com, char *cmd) {
+  uint8_t r = gdb_read8(cmd + 1);
 
-  // DEBUG
-  debug("register: %d\n", (int)reg);
-
-  // TODO: replace with JTAG probe
   char buf[1024];
-  gdb_write32(buf, 0x00000000);
-  gdb_send_packet(out, buf);
+  uint32_t x = pi_read_register(com, r);
+  gdb_write32(buf, x);
+
+  gdb_send_packet(com->gdb_out, buf);
 }
 
-typedef void (*handler_t)(FILE*, char*);
+void gdb_handle_detach(com_t *com, char *cmd) {
+  pi_send8(com->pi_out, CMD_DETACH);
+  gdb_send_packet(com->gdb_out, "OK");
+  exit(0);
+}
+
+void gdb_handle_step(com_t *com, char *cmd) {
+  // TODO: handle step with target address
+  pi_send8(com->pi_out, CMD_STEP);
+  pi_read8(com->pi_in);
+  gdb_handle_halt_reason(com, cmd);
+}
+
+typedef void (*handler_t)(com_t*, char*);
 const char *handler_cmds[] = {
   "qSupported",
   "?",
@@ -244,6 +393,8 @@ const char *handler_cmds[] = {
   "g",
   "m",
   "p",
+  "D",
+  "s",
   NULL
 };
 handler_t handlers[] = {
@@ -253,9 +404,11 @@ handler_t handlers[] = {
   gdb_handle_read_registers,
   gdb_handle_read_memory,
   gdb_handle_read_register,
+  gdb_handle_detach,
+  gdb_handle_step
 };
 
-void gdb_handle_cmd(FILE *out, char *cmd) {
+void gdb_handle_cmd(com_t *com, char *cmd) {
   const char *handler_cmd;
   size_t cmd_len = strlen(cmd);
   for (int i = 0; (handler_cmd = handler_cmds[i]); ++i) {
@@ -264,38 +417,38 @@ void gdb_handle_cmd(FILE *out, char *cmd) {
       len = cmd_len;
     if (strncmp(cmd, handler_cmd, len) == 0) {
       output("Info: handling %s\n", handler_cmd);
-      handlers[i](out, cmd);
+      handlers[i](com, cmd);
       return;
     }
   }
 
   output("Warning: unhandled command %s\n", cmd);
-  gdb_send_packet(out, "");
+  gdb_send_packet(com->gdb_out, "");
 }
 
-void gdb_read_packet(FILE *in, FILE *out) {
+void gdb_read_packet(com_t *com) {
   char c;
-  while ((c = fgetc(in)) != '$');
+  while ((c = fgetc(com->gdb_in)) != '$');
   uint8_t cksum = 0;
   char cmd[256];
   int i = 0;
-  while ((c = fgetc(in)) != '#') {
+  while ((c = fgetc(com->gdb_in)) != '#') {
     cmd[i++] = c;
     cksum += c;
   }
   cmd[i] = '\0';
 
-  uint8_t ref_cksum = gdb_get8(in);
+  uint8_t ref_cksum = gdb_get8(com->gdb_in);
   if (cksum == ref_cksum) {
-    fputc('+', out);
-    gdb_handle_cmd(out, cmd);
+    fputc('+', com->gdb_out);
+    gdb_handle_cmd(com, cmd);
   } else {
-    fputc('-', out);
+    fputc('-', com->gdb_out);
     output("Warning: ignored packet with incorrect checksum\n");
   }
 }
 
-void gdb_relay(void) {
+void gdb_relay(int pi_fd) {
   int sfd = socket(AF_INET, SOCK_STREAM, 0);
   if (sfd == -1)
     panic("Error: %s\n", strerror(errno));
@@ -316,21 +469,33 @@ void gdb_relay(void) {
   if (gfd == -1)
     panic("Error: %s\n", strerror(errno));
 
-  FILE *in = fdopen(dup(gfd), "rb");
-  FILE *out = fdopen(dup(gfd), "wb");
+  FILE *gdb_in = fdopen(dup(gfd), "rb");
+  FILE *gdb_out = fdopen(dup(gfd), "wb");
+  FILE *pi_in = fdopen(dup(pi_fd), "rb");
+  FILE *pi_out = fdopen(dup(pi_fd), "wb");
+  com_t com = (com_t){
+    .gdb_in = gdb_in,
+    .gdb_out = gdb_out,
+    .pi_in = pi_in,
+    .pi_out = pi_out,
+  };
   while (1)
-    gdb_read_packet(in, out);
+    gdb_read_packet(&com);
 
-  if (fclose(in) == -1)
+  if (fclose(gdb_in) == -1)
     panic("Error: %s\n", strerror(errno));
-  if (fclose(out) == -1)
+  if (fclose(gdb_out) == -1)
+    panic("Error: %s\n", strerror(errno));
+  if (fclose(pi_in) == -1)
+    panic("Error: %s\n", strerror(errno));
+  if (fclose(pi_out) == -1)
     panic("Error: %s\n", strerror(errno));
 }
 
 int main(int argc, char *argv[]) { 
   // DEBUG
-  gdb_relay();
-  return 0;
+  // gdb_relay();
+  // return 0;
 
     char *dev_name = 0;
     char *pi_prog = 0;
@@ -446,7 +611,7 @@ int main(int argc, char *argv[]) {
 
     // 5. echo output from pi
     if(!exec_argv)
-        pi_echo(0, fd, dev_name);
+        gdb_relay(fd);
     else {
         todo("not handling exec_argv");
         handoff_to(fd, TRACE_FD, exec_argv);

@@ -1,63 +1,101 @@
 #include "rpi.h"
 #include "cycle-util.h"
 #include "jtag.h"
+#include "boot.h"
 
-void read_idcode(void) {
-  jtag_init();
-
-  jtag_set_ir(JTAG_IDCODE);
-  uint32_t id = jtag_set_dr(0, JTAG_ID_LEN);
-
-  debug("identifier: %b\n", id);
-  debug("version: %b\n", id >> 28);
-  debug("part number: %b\n", (id >> 12) & 0xffff);
-  debug("manufacturer id: %b\n", (id >> 1) & 0xfff);
-  debug("last bit: %b\n", id & 1);
-  assert(id == 0b111101101110110000101111111);
+void boot_write8(uint8_t x) {
+  uart_put8(x);
 }
 
-void read_didr(void) {
-  jtag_init();
-
-  jtag_set_ir(JTAG_SCAN_N);
-  jtag_set_dr(JTAG_SCREG_DIDR, JTAG_SCREG_LEN);
-  jtag_set_ir(JTAG_INTEST);
-  uint32_t buf[2];
-  jtag_set_dr_long(buf, JTAG_DIDR_LEN + JTAG_IMPLEMENTOR_LEN, buf);
-
-  debug("didr: %x, implementor: %x\n", buf[0], buf[1]);
+void boot_write32(uint32_t x) {
+  boot_write8((x >> 24) & 0xff);
+  boot_write8((x >> 16) & 0xff);
+  boot_write8((x >>  8) & 0xff);
+  boot_write8( x        & 0xff);
 }
 
-void read_dscr(void) {
-  jtag_init();
-
-  jtag_set_ir(JTAG_SCAN_N);
-  jtag_set_dr(JTAG_SCREG_DIDR, JTAG_SCREG_LEN);
-  jtag_set_ir(JTAG_INTEST);
-  uint32_t dscr = jtag_set_dr(0, JTAG_DSCR_LEN);
-
-  debug("dscr: %b\n", dscr);
+uint8_t boot_read8(void) {
+  return uart_get8();
 }
 
-void halt(void) {
-  jtag_init();
-  jtag_set_ir(JTAG_HALT);
-  read_dscr();
-}
-
-void restart(void) {
-  jtag_init();
-  jtag_set_ir(JTAG_RESTART);
-  read_dscr();
+uint32_t boot_read32(void) {
+  return (uint32_t)boot_read8() << 24 |
+         (uint32_t)boot_read8() << 16 |
+         (uint32_t)boot_read8() <<  8 |
+         (uint32_t)boot_read8();
 }
 
 void notmain(void) {
   caches_enable();
-  output("Starting JTAG probe...\n");
 
-  // read_idcode();
-  // read_didr();
-  // read_dscr();
-  // halt();
-  restart();
+  jtag_init();
+  jtag_enter_debug_state();
+
+#ifdef TEST
+  debug("pc before step: %x\n", jtag_read_original_register(JTAG_REG_PC));
+ 
+  jtag_step();
+  
+  /*
+  for (int i = 0; i < 16; ++i)
+    debug("r%d = %x\n", i, jtag_read_original_register(i));
+
+  uint32_t addr = 0x8090;
+  for (int i = 0; i < 4; ++i)
+    debug("mem[%x] = %x\n", addr + i, (uint32_t)jtag_read_memory(addr + i));
+
+  // DEBUG
+  // bkpt #0
+  uint32_t inst = 0xe1200070;
+  // b 0x8000 
+  // uint32_t inst = 0xeaffffda;
+  for (int i = 0; i < 4; ++i)
+    jtag_write_memory(addr + i, (inst >> (8 * i)) & 0xff);
+
+  // DEBUG
+  debug("wrote to memory\n");
+  for (int i = 0; i < 4; ++i)
+    debug("mem[%x] = %x\n", addr + i, (uint32_t)jtag_read_memory(addr + i));
+
+  jtag_exit_debug_state();
+
+  // DEBUG
+  debug("exited debug state\n");
+  debug("dscr now: %b\n", jtag_read_dscr());
+
+  while (!jtag_halted());
+  jtag_enter_debug_state();
+
+  inst = 0xe3a0000c;
+  for (int i = 0; i < 4; ++i)
+    jtag_write_memory(addr + i, (inst >> (8 * i)) & 0xff);
+  */
+
+  debug("pc after step: %x\n", jtag_read_original_register(JTAG_REG_PC));
+#else
+  int run = 1;
+  while (run) {
+    uint8_t r;
+    uint32_t addr;
+    switch (boot_read8()) {
+      case CMD_READ_REG:
+        r = boot_read8();
+        boot_write32(jtag_read_original_register(r));
+        break;
+      case CMD_READ_MEM:
+        addr = boot_read32();
+        boot_write8(jtag_read_memory(addr));
+        break;
+      case CMD_STEP:
+        jtag_step();
+        boot_write8(0);
+        break;
+      case CMD_DETACH:
+        run = 0;
+        break;
+    }
+  }
+#endif
+
+  jtag_exit_debug_state();
 }
