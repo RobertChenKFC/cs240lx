@@ -181,7 +181,7 @@
 		(path "/0fcaa7d6-6e6f-4e80-b561-58bbfc5c6ef9")
 		(sheetname "Root")
 		(sheetfile "pcb.kicad_sch")
-		(attr through_hole)
+		(attr through_hole exclude_from_pos_files exclude_from_bom)
 		(fp_line
 			(start -1.6 13.35)
 			(end -1.6 -2.1)
@@ -572,7 +572,7 @@
 		(descr "Through hole angled socket strip, 1x05, 2.54mm pitch, 8.51mm socket length, single row (from Kicad 4.0.7), script generated")
 		(tags "Through hole angled socket strip THT 1x05 2.54mm single row")
 		(property "Reference" "J2"
-			(at -4.38 -2.77 270)
+			(at -4.38 -2.77 -90)
 			(layer "F.SilkS")
 			(uuid "4e0b7034-65ca-4106-9b47-7651ff0eeef2")
 			(effects
@@ -583,7 +583,7 @@
 			)
 		)
 		(property "Value" "~"
-			(at -4.38 12.93 270)
+			(at -4.38 12.93 -90)
 			(layer "F.Fab")
 			(hide yes)
 			(uuid "c4047673-6a70-47f5-a3c8-2ed8445da8ad")
@@ -633,7 +633,7 @@
 		(path "/eb685786-5e92-4936-9900-2fae3067445d")
 		(sheetname "Root")
 		(sheetfile "pcb.kicad_sch")
-		(attr through_hole)
+		(attr through_hole exclude_from_pos_files exclude_from_bom)
 		(fp_line
 			(start 1.11 -1.33)
 			(end 1.11 0)
@@ -1430,7 +1430,7 @@
 		(path "/b6232925-ba96-4f1a-8472-f5778a9130cc")
 		(sheetname "Root")
 		(sheetfile "pcb.kicad_sch")
-		(attr through_hole)
+		(attr through_hole exclude_from_pos_files exclude_from_bom)
 		(fp_line
 			(start -1.6 13.35)
 			(end -1.6 -2.1)
@@ -1821,7 +1821,7 @@
 		(descr "SMD capacitor, aluminum electrolytic, Panasonic A5 / Nichicon, 4.0x5.4mm")
 		(tags "capacitor electrolytic")
 		(property "Reference" "C2"
-			(at 0 -3.2 270)
+			(at 0 -3.2 -90)
 			(layer "F.SilkS")
 			(uuid "fc594b3f-a244-4bdf-ac8a-8739a551d75f")
 			(effects
@@ -1832,7 +1832,7 @@
 			)
 		)
 		(property "Value" "10 uF"
-			(at 0 3.2 270)
+			(at 0 3.2 -90)
 			(layer "F.Fab")
 			(uuid "769bb16b-4a63-4b2e-8c66-a52f6f020067")
 			(effects
@@ -2215,7 +2215,7 @@
 			(uuid "c3ad94aa-41b2-4448-a383-5512899e5adf")
 		)
 		(fp_text user "${REFERENCE}"
-			(at 0 0 270)
+			(at 0 0 -90)
 			(layer "F.Fab")
 			(uuid "731b3642-735d-4d82-9e0d-1edda2844aa7")
 			(effects
@@ -2262,7 +2262,7 @@
 		(descr "SMD capacitor, aluminum electrolytic, Panasonic A5 / Nichicon, 4.0x5.4mm")
 		(tags "capacitor electrolytic")
 		(property "Reference" "C1"
-			(at 0 -3.2 270)
+			(at 0 -3.2 -90)
 			(layer "F.SilkS")
 			(uuid "9529e735-281a-4d9f-9d65-def9049020d8")
 			(effects
@@ -2273,7 +2273,7 @@
 			)
 		)
 		(property "Value" "10 uF"
-			(at 0 3.2 270)
+			(at 0 3.2 -90)
 			(layer "F.Fab")
 			(uuid "a3fb9163-da60-4876-ba52-f0eafb0eb4ea")
 			(effects
@@ -2656,7 +2656,7 @@
 			(uuid "fb706ca6-5661-4df0-99c1-ffb45803502c")
 		)
 		(fp_text user "${REFERENCE}"
-			(at 0 0 270)
+			(at 0 0 -90)
 			(layer "F.Fab")
 			(uuid "5ef0b4d3-ccb1-4dfb-a9c6-b985d6860cae")
 			(effects
@@ -2769,7 +2769,7 @@
 		(path "/dc6952b7-f11a-41a3-88e8-12dfc1ffb76b")
 		(sheetname "Root")
 		(sheetfile "pcb.kicad_sch")
-		(attr through_hole)
+		(attr through_hole exclude_from_pos_files exclude_from_bom)
 		(fp_line
 			(start -1.27 1.33)
 			(end -3.87 1.33)
