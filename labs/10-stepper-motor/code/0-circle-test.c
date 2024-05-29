@@ -9,7 +9,7 @@
 #include "a4988.h"
 
 // you need to fill these in.
-enum { dir_delay = 0, step_delay = 0 };
+enum { dir_delay = 1, step_delay = 1000 };
 
 // rotate shaft 360 degrees.
 static void run_circle(step_t *s, int direction) {

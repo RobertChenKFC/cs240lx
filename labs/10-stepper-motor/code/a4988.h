@@ -57,10 +57,15 @@ step_mk(unsigned dir_pin,
 // 
 // generally: start with longer delays.
 static inline void step(step_t *s, int dir) {
-    assert(dir == forward || dir == backward);
-    assert(s->step_delay);
+  assert(dir == forward || dir == backward);
+  assert(s->step_delay);
 
-    unimplemented();
+  gpio_write(s->dir_pin, dir == forward);
+  delay_us(s->dir_delay);
+  gpio_write(s->step_pin, 1);
+  delay_us(s->step_delay);
+  gpio_write(s->step_pin, 0);
+  delay_us(s->step_delay);
 }
 
 static inline void step_forward(step_t *s) { step(s,forward); }

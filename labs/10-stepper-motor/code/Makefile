@@ -1,5 +1,6 @@
 # list out the driver program source 
-PROGS = 0-circle-test.c
+# PROGS = 0-circle-test.c
+PROGS = 1-freq-test.c
 
 # set RUN = 1 if you want the code to automatically run after building.
 RUN = 1
