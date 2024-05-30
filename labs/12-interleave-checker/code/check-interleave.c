@@ -8,6 +8,7 @@
 #include "check-interleave.h"
 #include "full-except.h"
 #include "pi-sys-lock.h"
+#include "atomic.h"
 
 // used to communicate with the breakpoint handler.
 static volatile checker_t *checker = 0;
@@ -23,11 +24,13 @@ int brk_verbose_p = 0;
 //   - arg1 of the call is in r->reg[2];
 //   - arg2 of the call is in r->reg[3];
 // we don't handle more arguments.
-static int syscall_handler_full(regs_t *r) {
+int syscall_handler_full(regs_t *r) {
     assert(mode_get(cpsr_get()) == SUPER_MODE);
 
     // we store the first syscall argument in r1
     uint32_t arg0 = r->regs[1];
+    uint32_t arg1 = r->regs[2];
+    uint32_t arg2 = r->regs[3];
     uint32_t sys_num = r->regs[0];
 
     // pc = address of instruction right after 
@@ -47,6 +50,19 @@ static int syscall_handler_full(regs_t *r) {
     case SYS_TEST:
         printk("running empty syscall with arg=%d\n", arg0);
         return SYS_TEST;
+    case SYS_ATOMIC_INIT:
+      atomic_init_impl((volatile atomic_intptr_t *)arg0, (intptr_t)arg1);
+      return 0;
+    case SYS_ATOMIC_LOAD:
+      return (int)atomic_load_impl((volatile atomic_intptr_t *)arg0);
+    case SYS_ATOMIC_COMP_EXCHG:
+      return atomic_compare_exchange_weak_impl(
+          (volatile atomic_intptr_t *)arg0, (volatile atomic_intptr_t *)arg1,
+          (intptr_t)arg2);
+    case SYS_MALLOC:
+      return (int)kmalloc((unsigned)arg0);
+    case SYS_ATOMIC_EXCHG:
+      return atomic_exchange_impl((volatile atomic_int *)arg0, (int)arg1);
     default:
         panic("illegal system call = %d, pc=%x, arg0=%d!\n", sys_num, pc, arg0);
     }
@@ -90,7 +106,7 @@ int run_in_user_mode(int (*B)(struct checker *), struct checker *c) {
 //     - if B() returns 0, it couldn't complete w current state:
 //       resume A() and switch on next instruction.
 static void A_terminated(uint32_t ret);
-static void single_step_handler_full(regs_t *r) {
+void single_step_handler_full(regs_t *r) {
     if(!brkpt_fault_p())
         panic("impossible: should get no other faults\n");
 
@@ -98,7 +114,7 @@ static void single_step_handler_full(regs_t *r) {
     uint32_t n = ++checker->inst_count;
 
     // output("single-step handler: inst=%d: A:pc=%x\n", n,pc);
-
+    
     // the weird way single step works: run the instruction at 
     // address <pc>, by setting up a mismatch fault for any other
     // pc value.
@@ -125,6 +141,58 @@ static void single_step_handler_full(regs_t *r) {
       brkpt_mismatch_set(pc);
     }
     switchto(r);
+}
+
+enum {
+  LDREX = 0xe1900f9f,
+  STREX = 0xe1800f90,
+};
+
+cp_asm(dfsr, p15, 0, c5, c0, 0)
+
+void data_abort_handler_full(regs_t *r) {
+  uint32_t pc = r->regs[REGS_PC];
+
+  // DEBUG
+  output("data abort at pc=%x\n", pc);
+  uint32_t stat = dfsr_get();
+  output("fault reason: (bit 10) %b, (bits 3-0) %b\n",
+         (stat >> 10) & 1, stat & 0xf);
+
+  uint32_t inst = *((uint32_t*)pc);
+  static uint32_t prev_addr, has_outstanding_addr = 0;
+  if ((inst & LDREX) == LDREX) {
+    uint32_t rt = (inst >> 12) & 0xf;
+    uint32_t rn = (inst >> 16) & 0xf;
+    prev_addr = r->regs[rn];
+
+    // DEBUG
+    output("running instruction: ldrex r%d, [r%d]\n", rt, rn);
+    output("address: %x\n", prev_addr);
+
+    has_outstanding_addr = 1;
+    r->regs[rt] = *((uint32_t*)prev_addr);
+  } else if ((inst & STREX) == STREX) {
+    uint32_t rd = (inst >> 12) & 0xf;
+    uint32_t rt = inst & 0xf;
+    uint32_t rn = (inst >> 16) & 0xf;
+    uint32_t addr = r->regs[rn];
+
+    // DEBUG
+    output("running instruction: strex r%d, r%d, [r%d]\n", rd, rt, rn);
+    output("address: %x\n", addr);
+
+    if (has_outstanding_addr && addr == prev_addr) {
+      *((uint32_t*)addr) = r->regs[rt];
+      has_outstanding_addr = 0;
+      r->regs[rd] = 0;
+    } else {
+      r->regs[rd] = 1;
+    }
+  } else {
+    panic("undefined instruction %x at pc=%x\n", inst, pc);
+  }
+  r->regs[REGS_PC] += 4;
 }
 
 // registers saved when we started.
@@ -204,6 +272,10 @@ int check(checker_t *c) {
     full_except_install(0);
     full_except_set_syscall(syscall_handler_full);
     full_except_set_prefetch(single_step_handler_full);
+    full_except_set_data_abort(data_abort_handler_full);
+
+    void init_sp(void);
+    init_sp();
 
     // show how to the interface works by testing
     // A(),B() sequentially multiple times.

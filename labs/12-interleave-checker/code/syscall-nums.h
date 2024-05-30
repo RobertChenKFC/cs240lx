@@ -4,5 +4,10 @@
 #define SYS_RESUME  1
 #define SYS_TRYLOCK 2
 #define SYS_TEST 3
+#define SYS_ATOMIC_INIT 4
+#define SYS_ATOMIC_LOAD 5
+#define SYS_ATOMIC_COMP_EXCHG 6
+#define SYS_MALLOC 7
+#define SYS_ATOMIC_EXCHG 8
 
 #endif // SYSCALL_NUMS_H

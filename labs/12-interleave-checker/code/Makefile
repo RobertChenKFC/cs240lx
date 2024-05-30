@@ -1,8 +1,10 @@
 #PROGS := tests/5-circular-q-ok-test.c
 
-PROGS := $(wildcard tests/[01234567]*-test.c)
+# PROGS := $(wildcard tests/[01234567]*-test.c)
 # PROGS := $(wildcard tests/[023567]*-test.c)
 
+PROGS += tests/7-chatgpt-bst.c
+# PROGS += tests/6-chatgpt-list.c
 # PROGS += tests/5-circular-q-ok-test.c
 # PROGS += tests/4-trylock-ok-test.c
 # PROGS += tests/3-circular-ok-test.c
@@ -19,11 +21,15 @@ COMMON_SRC += syscall-invoke-asm.S
 COMMON_SRC += staff-full-except.c
 
 # you can drop your versions in from 140e.
-STAFF_OBJS += staff-full-except-asm.o
+# STAFF_OBJS += staff-full-except-asm.o
+COMMON_SRC += full-except-asm.S
 STAFF_OBJS += staff-switchto-asm.o
+
 STAFF_OBJS += staff-single-step.o
 
-BOOTLOADER=my-install
+COMMON_SRC += atomic.c
+
+BOOTLOADER=my-install --device /dev/$$(ls /dev | grep cu.usbserial | head -n 1)
 RUN = 1
 CAN_EMIT=1
 

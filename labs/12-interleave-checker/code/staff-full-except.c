@@ -51,6 +51,7 @@ void prefetch_abort_full_except(regs_t *r, uint32_t spsr, uint32_t pc) {
 
     if(!prefetch_handler)
         panic("unhandled prefetch abort from pc=%x\n", pc);
+
     fixup_regs(r, spsr);
     prefetch_handler(r);
     switchto(r);
@@ -116,6 +117,56 @@ full_excepti_t full_except_set_syscall(full_excepti_t h) {
     full_excepti_t o = syscall_handler; 
     syscall_handler = h;
     return o;
+}
+
+#if 0
+enum {
+  LDREX = 0xe1900f9f,
+  STREX = 0xe1800f90,
+};
+int undef_full_except(regs_t *r, uint32_t spsr, uint32_t pc) {
+  uint32_t inst = *((uint32_t*)pc);
+  static uint32_t prev_addr, has_outstanding_addr = 0;
+  if ((inst & LDREX) == LDREX) {
+    uint32_t rt = (inst >> 12) & 0xf;
+    uint32_t rn = (inst >> 16) & 0xf;
+  
+    // DEBUG
+    output("running instruction: ldrex r%d, [r%d]\n", rt, rn);
+    
+    prev_addr = r->regs[rn];
+    has_outstanding_addr = 1;
+    r->regs[rt] = *((uint32_t*)prev_addr);
+  } else if ((inst & STREX) == STREX) {
+    uint32_t rd = (inst >> 12) & 0xf;
+    uint32_t rt = inst & 0xf;
+    uint32_t rn = (inst >> 16) & 0xf;
+    uint32_t addr = r->regs[rn];
+
+    // DEBUG
+    output("running instruction: strex r%d, r%d, [r%d]\n", rd, rt, rn);
+
+    if (has_outstanding_addr && addr == prev_addr) {
+      *((uint32_t*)addr) = r->regs[rt];
+      has_outstanding_addr = 0;
+      r->regs[rd] = 0;
+    } else {
+      r->regs[rd] = 1;
+    }
+  } else {
+    panic("undefined instruction %x at pc=%x\n", inst, pc);
+  }
+  switchto(r);
+}
+#else
+int undef_full_except(regs_t *r, uint32_t spsr, uint32_t pc) {
+  panic("undef instruction at pc = %x, reboot!\n", pc);
+}
+#endif
+
+// DEBUG
+int interrupt_full_except(regs_t *r, uint32_t spsr, uint32_t pc) {
+  panic("interrupt at pc = %x, reboot!\n", pc);
 }
 
 // install the default exception vectors: client can
