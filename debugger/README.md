@@ -8,6 +8,7 @@ These instructions are for debugging the simple program written in `prog/prog.c`
 
 This example is written so that the debugger is run on the *first* device, while the debuggee is run on the *second* device (here, first and second means the order they appear under `/dev/`). However, for simplicity, you can set up the two Pi's in the same way so that it doesn't matter which Pi gets picked as the debuggee.
 
+0. Confirm that the `USB_DEV` variable in `defs.mk` is set according to your host OS
 1. Connect pins 23 through 27 and GND between the two Pi Zeros (so 6 pins should be connected).
 2. Debuggee: ensure the JTAG pins are exposed. The easiest way is to add the line `enable_jtag_gpio=1` to `config.txt` in the SD card of the debuggee.
 3. Debuggee: connect pin 22 to VCC.
