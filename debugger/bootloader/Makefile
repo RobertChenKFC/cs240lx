@@ -6,8 +6,8 @@ BOOTLOADER = $(PROGS:.c=)
 PROBE_PATH = ../probe/
 PROBE = $(PROBE_PATH)probe.bin
 
-FIRST_DEVICE=/dev/$$(ls /dev | grep cu.usbserial | head -n 1)
-LAST_DEVICE=/dev/$$(ls /dev | grep cu.usbserial | tail -n 1)
+include ../defs.mk
+FIRST_DEVICE=/dev/$$(ls /dev | grep $(USB_DEV) | head -n 1)
 test: $(BOOTLOADER) $(PROBE)
 	./jtag-install --device $(FIRST_DEVICE) $(PROBE)
 
